@@ -1,6 +1,5 @@
 -- ==============================================================================
 -- HoshiUI — Next-Gen Roblox UI Library (WindUI Remake)
--- High Performance • Multi-Pack Icon Engine (Footagesus/Icons) • Auto-Save Config
 -- ==============================================================================
 
 local TweenService = game:GetService("TweenService")
@@ -11,6 +10,7 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
 local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
 -- Safe Parent Detection
 local function getSafeGuiParent()
@@ -103,36 +103,12 @@ local CoreFallbackIcons = {
 
 IconEngine.LoadedSets["lucide"] = CoreFallbackIcons
 
-local function ensureCacheFolder()
-    if makefolder and isfolder then
-        pcall(function()
-            if not isfolder("HoshiHub") then makefolder("HoshiHub") end
-            if not isfolder(IconEngine.CacheFolder) then makefolder(IconEngine.CacheFolder) end
-        end)
-    end
-end
-
 function IconEngine.LoadSet(setName)
     setName = setName:lower()
     if IconEngine.LoadedSets[setName] and IconEngine.LoadedSets[setName] ~= CoreFallbackIcons then
         return IconEngine.LoadedSets[setName]
     end
 
-    ensureCacheFolder()
-    local cacheFilePath = IconEngine.CacheFolder .. "/" .. setName .. ".json"
-
-    -- Check local file cache
-    if readfile and isfile and isfile(cacheFilePath) then
-        local success, cachedData = pcall(function()
-            return HttpService:JSONDecode(readfile(cacheFilePath))
-        end)
-        if success and type(cachedData) == "table" then
-            IconEngine.LoadedSets[setName] = cachedData
-            return cachedData
-        end
-    end
-
-    -- Fetch from Footagesus repository
     local url = IconEngine.Urls[setName]
     if url then
         local fetchSuccess, rawLua = pcall(function()
@@ -148,14 +124,8 @@ function IconEngine.LoadSet(setName)
             local loadSuccess, parsedTable = pcall(function()
                 return loadstring(rawLua)()
             end)
-
             if loadSuccess and type(parsedTable) == "table" then
                 IconEngine.LoadedSets[setName] = parsedTable
-                if writefile then
-                    pcall(function()
-                        writefile(cacheFilePath, HttpService:JSONEncode(parsedTable))
-                    end)
-                end
                 return parsedTable
             end
         end
@@ -361,7 +331,7 @@ local HoshiUI = {
 local function tween(object, goal, duration, easingStyle, easingDirection)
     if not object then return nil end
     local info = TweenInfo.new(
-        duration or 0.25,
+        duration or 0.22,
         easingStyle or Enum.EasingStyle.Quad,
         easingDirection or Enum.EasingDirection.Out
     )
@@ -409,19 +379,19 @@ local function addPadding(parent, top, bottom, left, right)
 end
 
 -- ==============================================================================
--- DRAG ENGINE (Smooth Frame-rate Independent Dragging)
+-- SMOOTH DRAGGING ENGINE (Supports Mouse & Touch with Screen Clamping)
 -- ==============================================================================
-local function makeDraggable(topbar, mainFrame)
+local function makeDraggable(handle, targetFrame)
     local dragging = false
     local dragInput = nil
     local dragStart = nil
     local startPos = nil
 
-    topbar.InputBegan:Connect(function(input)
+    handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
-            startPos = mainFrame.Position
+            startPos = targetFrame.Position
 
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
@@ -431,7 +401,7 @@ local function makeDraggable(topbar, mainFrame)
         end
     end)
 
-    topbar.InputChanged:Connect(function(input)
+    handle.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
@@ -446,7 +416,7 @@ local function makeDraggable(topbar, mainFrame)
                 startPos.Y.Scale,
                 startPos.Y.Offset + delta.Y
             )
-            tween(mainFrame, { Position = newPos }, 0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+            tween(targetFrame, { Position = newPos }, 0.05, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
         end
     end)
 end
@@ -458,10 +428,10 @@ local ConfigManager = {
     Folder = "HoshiHub",
     File = "DefaultConfig.json",
     AutoSaveEnabled = true,
-    SaveDebounceTime = 0.4,
+    SaveDebounceTime = 0.35,
     _saveThread = nil,
     _data = {},
-    _elements = {}, -- Map of Flag -> Component
+    _elements = {},
 }
 
 function ConfigManager:Init(folderName, fileName, autoSave)
@@ -485,7 +455,6 @@ function ConfigManager:RegisterFlag(flag, component, initialValue)
         self._elements[flag] = component
     end
 
-    -- Restore saved value if available
     if self._data[flag] ~= nil then
         return self._data[flag]
     else
@@ -578,7 +547,6 @@ function ConfigManager:Load(customFileName)
             self._data[k] = v
         end
 
-        -- If the UI component is already loaded, update it
         local comp = self._elements[k]
         if comp and comp.SetValue then
             pcall(function()
@@ -605,58 +573,176 @@ function ConfigManager:Export()
 end
 
 -- ==============================================================================
--- NOTIFICATION SYSTEM (Bottom-Right Floating Stacking Alerts)
+-- NOTIFICATION SYSTEM (Bottom-Right Floating Alerts)
 -- ==============================================================================
 local function createNotificationHolder(screenGui)
     local holder = createInstance("Frame", {
         Name = "NotificationHolder",
-        Size = UDim2.new(0, 320, 1, -40),
-        Position = UDim2.new(1, -340, 0, 20),
+        Size = UDim2.new(0, 300, 1, -40),
+        Position = UDim2.new(1, -315, 0, 20),
         BackgroundTransparency = 1,
         Parent = screenGui
     }, {
         createInstance("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
             VerticalAlignment = Enum.VerticalAlignment.Bottom,
-            Padding = UDim.new(0, 10)
+            Padding = UDim.new(0, 8)
         })
     })
     return holder
 end
 
 -- ==============================================================================
--- MAIN WINDOW CONSTRUCTOR
+-- FLOATING TOGGLE BUTTON (Mobile & Desktop Floating Icon)
+-- ==============================================================================
+local function createFloatingButton(screenGui, theme, iconAsset, onClick)
+    local floatBtn = createInstance("ImageButton", {
+        Name = "FloatingToggleButton",
+        Size = UDim2.new(0, 46, 0, 46),
+        Position = UDim2.new(0, 20, 0.5, -23),
+        BackgroundColor3 = theme.Background,
+        AutoButtonColor = false,
+        ZIndex = 50,
+        Parent = screenGui
+    })
+    addCorner(floatBtn, 23)
+    local stroke = addStroke(floatBtn, theme.Accent, 1.5)
+
+    createInstance("ImageLabel", {
+        Name = "Shadow",
+        Size = UDim2.new(1, 24, 1, 24),
+        Position = UDim2.new(0, -12, 0, -12),
+        BackgroundTransparency = 1,
+        Image = "rbxassetid://6015897843",
+        ImageColor3 = theme.Accent,
+        ImageTransparency = 0.65,
+        SliceCenter = Rect.new(49, 49, 450, 450),
+        ScaleType = Enum.ScaleType.Slice,
+        ZIndex = 49,
+        Parent = floatBtn
+    })
+
+    createInstance("ImageLabel", {
+        Name = "Icon",
+        Size = UDim2.new(0, 22, 0, 22),
+        Position = UDim2.new(0.5, -11, 0.5, -11),
+        BackgroundTransparency = 1,
+        Image = iconAsset or IconEngine.GetIcon("sparkles"),
+        ImageColor3 = theme.Accent,
+        ZIndex = 51,
+        Parent = floatBtn
+    })
+
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    local moved = false
+
+    floatBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            moved = false
+            dragStart = input.Position
+            startPos = floatBtn.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    if not moved then
+                        tween(floatBtn, { Size = UDim2.new(0, 40, 0, 40) }, 0.08)
+                        task.wait(0.08)
+                        tween(floatBtn, { Size = UDim2.new(0, 46, 0, 46) }, 0.12, Enum.EasingStyle.Back)
+                        pcall(onClick)
+                    end
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            if delta.Magnitude > 6 then
+                moved = true
+                local newPos = UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset + delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset + delta.Y
+                )
+                tween(floatBtn, { Position = newPos }, 0.05, Enum.EasingStyle.Sine)
+            end
+        end
+    end)
+
+    floatBtn.MouseEnter:Connect(function()
+        tween(floatBtn, { BackgroundColor3 = theme.CardHover }, 0.15)
+        tween(stroke, { Color = theme.AccentHover }, 0.15)
+    end)
+    floatBtn.MouseLeave:Connect(function()
+        tween(floatBtn, { BackgroundColor3 = theme.Background }, 0.15)
+        tween(stroke, { Color = theme.Accent }, 0.15)
+    end)
+
+    return floatBtn
+end
+
+-- ==============================================================================
+-- MAIN WINDOW CONSTRUCTOR (With Duplicate Run & Hot-Reload Protection)
 -- ==============================================================================
 function HoshiUI:CreateWindow(config)
     config = config or {}
     local windowTitle = config.Title or "Hoshi UI"
     local windowSubTitle = config.SubTitle or "WindUI Remake v2.0"
     local windowIcon = IconEngine.GetIcon(config.Icon or "sparkles")
-    local windowSize = config.Size or UDim2.new(0, 680, 0, 440)
     local toggleKey = config.ToggleKey or Enum.KeyCode.RightControl
     local themeName = config.Theme or "Dark"
     local configFolder = config.Folder or "HoshiHub"
     local configFile = config.ConfigFile or "Config.json"
     local autoSave = config.AutoSave ~= false
+    local showFloatingBtn = config.FloatingButton ~= false
+    local floatingIcon = IconEngine.GetIcon(config.FloatingIcon or config.Icon or "sparkles")
     local iconSet = config.IconsType or config.IconType
 
     if iconSet then
         IconEngine.SetIconsType(iconSet)
     end
 
+    -- ==========================================================================
+    -- 1. INSTANT ZERO-OVERHEAD HOT-RELOAD PROTECTION (O(1) C++ Pointer Lookup)
+    -- ==========================================================================
+    if getgenv then
+        local active = getgenv().HoshiHub_ActiveWindow
+        if active and active.Destroy then
+            pcall(active.Destroy, active)
+        end
+    end
+
+    local safeParent = getSafeGuiParent()
+    local existingGui = safeParent:FindFirstChild("HoshiUI_Root")
+    if existingGui then
+        pcall(existingGui.Destroy, existingGui)
+    end
+
     local theme = Themes[themeName] or Themes["Dark"]
     HoshiUI.ActiveTheme = theme
     HoshiUI.ActiveThemeName = themeName
 
+    -- Responsive Window Sizing (Clamped to Screen Size for Mobile/Tablets)
+    local viewport = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
+    local defaultW = math.min(config.Size and config.Size.X.Offset or 660, viewport.X - 24)
+    local defaultH = math.min(config.Size and config.Size.Y.Offset or 430, viewport.Y - 30)
+    local windowSize = UDim2.new(0, defaultW, 0, defaultH)
+
     -- Initialize Config
     ConfigManager:Init(configFolder, configFile, autoSave)
 
-    -- Create ScreenGui
+    -- Create Clean ScreenGui Root
     local screenGui = createInstance("ScreenGui", {
-        Name = "HoshiUI_" .. math.random(1000, 9999),
+        Name = "HoshiUI_Root",
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        Parent = getSafeGuiParent()
+        Parent = safeParent
     })
 
     local notifHolder = createNotificationHolder(screenGui)
@@ -673,7 +759,11 @@ function HoshiUI:CreateWindow(config)
     addCorner(mainFrame, 12)
     local mainStroke = addStroke(mainFrame, theme.Border, 1)
 
-    -- Subtle Background Shadow / Glow
+    local uiScale = createInstance("UIScale", {
+        Scale = 1,
+        Parent = mainFrame
+    })
+
     createInstance("ImageLabel", {
         Name = "Shadow",
         Size = UDim2.new(1, 40, 1, 40),
@@ -698,7 +788,6 @@ function HoshiUI:CreateWindow(config)
     })
     addCorner(topBar, 12)
 
-    -- Flatten bottom corners of TopBar
     local topBarCover = createInstance("Frame", {
         Name = "Cover",
         Size = UDim2.new(1, 0, 0, 12),
@@ -708,7 +797,6 @@ function HoshiUI:CreateWindow(config)
         Parent = topBar
     })
 
-    -- Topbar Bottom Border Line
     local topBarLine = createInstance("Frame", {
         Name = "Line",
         Size = UDim2.new(1, 0, 0, 1),
@@ -718,7 +806,6 @@ function HoshiUI:CreateWindow(config)
         Parent = topBar
     })
 
-    -- Topbar Icon
     local topIcon = nil
     local titleOffset = 16
     if windowIcon then
@@ -734,10 +821,9 @@ function HoshiUI:CreateWindow(config)
         titleOffset = 44
     end
 
-    -- Title & SubTitle Container
     local titleContainer = createInstance("Frame", {
         Name = "TitleContainer",
-        Size = UDim2.new(0, 300, 1, 0),
+        Size = UDim2.new(0.6, 0, 1, 0),
         Position = UDim2.new(0, titleOffset, 0, 0),
         BackgroundTransparency = 1,
         Parent = topBar
@@ -750,9 +836,10 @@ function HoshiUI:CreateWindow(config)
         BackgroundTransparency = 1,
         Text = windowTitle,
         TextColor3 = theme.Text,
-        TextSize = 15,
+        TextSize = 14,
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         Parent = titleContainer
     })
 
@@ -763,13 +850,13 @@ function HoshiUI:CreateWindow(config)
         BackgroundTransparency = 1,
         Text = windowSubTitle,
         TextColor3 = theme.SubText,
-        TextSize = 11,
+        TextSize = 10,
         Font = Enum.Font.GothamMedium,
         TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         Parent = titleContainer
     })
 
-    -- TopBar Action Buttons (Minimize, Close)
     local actionsContainer = createInstance("Frame", {
         Name = "Actions",
         Size = UDim2.new(0, 80, 1, 0),
@@ -820,25 +907,49 @@ function HoshiUI:CreateWindow(config)
 
     local isMinimized = false
     local originalSize = windowSize
+
     createTopBarButton("Minimize", "chevron-up", theme.CardHover, function()
         isMinimized = not isMinimized
         if isMinimized then
-            tween(mainFrame, { Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset, 0, 48) }, 0.25)
+            tween(mainFrame, { Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset, 0, 48) }, 0.22)
         else
-            tween(mainFrame, { Size = originalSize }, 0.25)
+            tween(mainFrame, { Size = originalSize }, 0.22)
         end
     end)
 
+    local isVisible = true
+
+    local function toggleWindow(forcedState)
+        if forcedState ~= nil then
+            isVisible = forcedState
+        else
+            isVisible = not isVisible
+        end
+
+        if isVisible then
+            mainFrame.Visible = true
+            uiScale.Scale = 0.88
+            tween(uiScale, { Scale = 1 }, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+        else
+            local anim = tween(uiScale, { Scale = 0.88 }, 0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+            if anim then
+                anim.Completed:Connect(function()
+                    if not isVisible then
+                        mainFrame.Visible = false
+                    end
+                end)
+            else
+                mainFrame.Visible = false
+            end
+        end
+    end
+
     createTopBarButton("Close", "x", Color3.fromRGB(180, 40, 50), function()
-        tween(mainFrame, { Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1 }, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-        task.wait(0.2)
-        screenGui:Destroy()
+        toggleWindow(false)
     end)
 
-    -- Make Window Draggable
     makeDraggable(topBar, mainFrame)
 
-    -- Body Container
     local body = createInstance("Frame", {
         Name = "Body",
         Size = UDim2.new(1, 0, 1, -48),
@@ -848,17 +959,17 @@ function HoshiUI:CreateWindow(config)
         Parent = mainFrame
     })
 
-    -- Left Sidebar (Tabs List)
+    local sidebarWidth = math.clamp(math.floor(defaultW * 0.28), 140, 180)
+
     local sidebar = createInstance("Frame", {
         Name = "Sidebar",
-        Size = UDim2.new(0, 180, 1, 0),
+        Size = UDim2.new(0, sidebarWidth, 1, 0),
         BackgroundColor3 = theme.Sidebar,
         BorderSizePixel = 0,
         Parent = body
     })
     addCorner(sidebar, 12)
 
-    -- Flatten right corners of sidebar
     createInstance("Frame", {
         Name = "Cover",
         Size = UDim2.new(0, 12, 1, 0),
@@ -868,7 +979,6 @@ function HoshiUI:CreateWindow(config)
         Parent = sidebar
     })
 
-    -- Sidebar Right Divider
     createInstance("Frame", {
         Name = "Line",
         Size = UDim2.new(0, 1, 1, 0),
@@ -889,41 +999,106 @@ function HoshiUI:CreateWindow(config)
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         Parent = sidebar
     })
-    addPadding(tabListScroll, 8, 8, 8, 8)
+    addPadding(tabListScroll, 6, 6, 6, 6)
     createInstance("UIListLayout", {
         SortOrder = Enum.SortOrder.LayoutOrder,
         Padding = UDim.new(0, 4),
         Parent = tabListScroll
     })
 
-    -- Right Content Area (Pages)
     local contentArea = createInstance("Frame", {
         Name = "ContentArea",
-        Size = UDim2.new(1, -181, 1, 0),
-        Position = UDim2.new(0, 181, 0, 0),
+        Size = UDim2.new(1, -sidebarWidth - 1, 1, 0),
+        Position = UDim2.new(0, sidebarWidth + 1, 0, 0),
         BackgroundTransparency = 1,
         Parent = body
     })
+
+    local floatingBtn = nil
+    if showFloatingBtn then
+        floatingBtn = createFloatingButton(screenGui, theme, floatingIcon, function()
+            toggleWindow()
+        end)
+    end
+
+    local windowConnections = {}
 
     -- Window Object
     local Window = {
         ScreenGui = screenGui,
         MainFrame = mainFrame,
+        FloatingButton = floatingBtn,
         Tabs = {},
         ActiveTab = nil,
         ConfigManager = ConfigManager,
         Icons = IconEngine,
-        Theme = theme
+        Theme = theme,
+        _connections = windowConnections
     }
 
-    -- Keybind Toggle Listener
-    local isVisible = true
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if not gameProcessed and input.KeyCode == toggleKey then
-            isVisible = not isVisible
-            mainFrame.Visible = isVisible
+    function Window:Toggle(state)
+        toggleWindow(state)
+    end
+
+    function Window:Show()
+        toggleWindow(true)
+    end
+
+    function Window:Hide()
+        toggleWindow(false)
+    end
+
+    function Window:SetFloatingVisible(visible)
+        if floatingBtn then
+            floatingBtn.Visible = visible
         end
-    end)
+    end
+
+    -- Clean Destroy & Unload API
+    function Window:Destroy()
+        for _, conn in pairs(self._connections) do
+            pcall(function()
+                conn:Disconnect()
+            end)
+        end
+        if self.ScreenGui and self.ScreenGui.Parent then
+            pcall(function()
+                self.ScreenGui:Destroy()
+            end)
+        end
+        if getgenv and getgenv().HoshiHub_ActiveWindow == self then
+            getgenv().HoshiHub_ActiveWindow = nil
+        end
+    end
+
+    -- Hotkey Listener
+    table.insert(windowConnections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == toggleKey then
+            toggleWindow()
+        end
+    end))
+
+    -- Screen Resize Watcher
+    if Camera then
+        table.insert(windowConnections, Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+            local vp = Camera.ViewportSize
+            local curX = mainFrame.Position.X.Offset
+            local curY = mainFrame.Position.Y.Offset
+            local maxX = vp.X - mainFrame.AbsoluteSize.X
+            local maxY = vp.Y - mainFrame.AbsoluteSize.Y
+            if maxX > 0 and curX > maxX then
+                mainFrame.Position = UDim2.new(0, math.max(0, maxX), mainFrame.Position.Y.Scale, curY)
+            end
+            if maxY > 0 and curY > maxY then
+                mainFrame.Position = UDim2.new(mainFrame.Position.X.Scale, curX, 0, math.max(0, maxY))
+            end
+        end))
+    end
+
+    -- Register Active Window in Global Environment
+    if getgenv then
+        getgenv().HoshiHub_ActiveWindow = Window
+    end
 
     -- ==============================================================================
     -- NOTIFICATION METHOD
@@ -943,7 +1118,7 @@ function HoshiUI:CreateWindow(config)
 
         local card = createInstance("Frame", {
             Name = "NotificationCard",
-            Size = UDim2.new(1, 0, 0, 72),
+            Size = UDim2.new(1, 0, 0, 68),
             BackgroundColor3 = theme.CardBackground,
             ClipsDescendants = true,
             Parent = notifHolder
@@ -953,7 +1128,7 @@ function HoshiUI:CreateWindow(config)
 
         local iconImg = createInstance("ImageLabel", {
             Name = "Icon",
-            Size = UDim2.new(0, 20, 0, 20),
+            Size = UDim2.new(0, 18, 0, 18),
             Position = UDim2.new(0, 12, 0, 12),
             BackgroundTransparency = 1,
             Image = nIcon,
@@ -963,12 +1138,12 @@ function HoshiUI:CreateWindow(config)
 
         local cardTitle = createInstance("TextLabel", {
             Name = "Title",
-            Size = UDim2.new(1, -44, 0, 18),
-            Position = UDim2.new(0, 40, 0, 12),
+            Size = UDim2.new(1, -42, 0, 18),
+            Position = UDim2.new(0, 38, 0, 10),
             BackgroundTransparency = 1,
             Text = nTitle,
             TextColor3 = theme.Text,
-            TextSize = 13,
+            TextSize = 12,
             Font = Enum.Font.GothamBold,
             TextXAlignment = Enum.TextXAlignment.Left,
             Parent = card
@@ -976,12 +1151,12 @@ function HoshiUI:CreateWindow(config)
 
         local cardDesc = createInstance("TextLabel", {
             Name = "Content",
-            Size = UDim2.new(1, -44, 0, 30),
-            Position = UDim2.new(0, 40, 0, 30),
+            Size = UDim2.new(1, -42, 0, 28),
+            Position = UDim2.new(0, 38, 0, 28),
             BackgroundTransparency = 1,
             Text = nContent,
             TextColor3 = theme.SubText,
-            TextSize = 11,
+            TextSize = 10,
             Font = Enum.Font.GothamMedium,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextYAlignment = Enum.TextYAlignment.Top,
@@ -1007,16 +1182,16 @@ function HoshiUI:CreateWindow(config)
         })
 
         card.Position = UDim2.new(1, 300, 0, 0)
-        tween(card, { Position = UDim2.new(0, 0, 0, 0) }, 0.25, Enum.EasingStyle.Sine)
+        tween(card, { Position = UDim2.new(0, 0, 0, 0) }, 0.22, Enum.EasingStyle.Sine)
         tween(progressFill, { Size = UDim2.new(0, 0, 1, 0) }, nDuration, Enum.EasingStyle.Linear)
 
         task.delay(nDuration, function()
             if card and card.Parent then
-                tween(card, { BackgroundTransparency = 1 }, 0.2)
-                tween(cardTitle, { TextTransparency = 1 }, 0.2)
-                tween(cardDesc, { TextTransparency = 1 }, 0.2)
-                tween(iconImg, { ImageTransparency = 1 }, 0.2)
-                task.wait(0.2)
+                tween(card, { BackgroundTransparency = 1 }, 0.18)
+                tween(cardTitle, { TextTransparency = 1 }, 0.18)
+                tween(cardDesc, { TextTransparency = 1 }, 0.18)
+                tween(iconImg, { ImageTransparency = 1 }, 0.18)
+                task.wait(0.18)
                 card:Destroy()
             end
         end)
@@ -1048,8 +1223,8 @@ function HoshiUI:CreateWindow(config)
 
         local dialogBox = createInstance("Frame", {
             Name = "DialogBox",
-            Size = UDim2.new(0, 360, 0, 170),
-            Position = UDim2.new(0.5, -180, 0.5, -85),
+            Size = UDim2.new(0, math.min(340, defaultW - 30), 0, 160),
+            Position = UDim2.new(0.5, -math.min(340, defaultW - 30) / 2, 0.5, -80),
             BackgroundColor3 = theme.CardBackground,
             ZIndex = 21,
             Parent = modalOverlay
@@ -1060,11 +1235,11 @@ function HoshiUI:CreateWindow(config)
         createInstance("TextLabel", {
             Name = "Title",
             Size = UDim2.new(1, -30, 0, 24),
-            Position = UDim2.new(0, 16, 0, 14),
+            Position = UDim2.new(0, 16, 0, 12),
             BackgroundTransparency = 1,
             Text = dTitle,
             TextColor3 = theme.Text,
-            TextSize = 15,
+            TextSize = 14,
             Font = Enum.Font.GothamBold,
             TextXAlignment = Enum.TextXAlignment.Left,
             ZIndex = 22,
@@ -1073,12 +1248,12 @@ function HoshiUI:CreateWindow(config)
 
         createInstance("TextLabel", {
             Name = "Content",
-            Size = UDim2.new(1, -32, 0, 50),
-            Position = UDim2.new(0, 16, 0, 42),
+            Size = UDim2.new(1, -32, 0, 48),
+            Position = UDim2.new(0, 16, 0, 38),
             BackgroundTransparency = 1,
             Text = dContent,
             TextColor3 = theme.SubText,
-            TextSize = 12,
+            TextSize = 11,
             Font = Enum.Font.GothamMedium,
             TextXAlignment = Enum.TextXAlignment.Left,
             TextYAlignment = Enum.TextYAlignment.Top,
@@ -1089,8 +1264,8 @@ function HoshiUI:CreateWindow(config)
 
         local btnContainer = createInstance("Frame", {
             Name = "Buttons",
-            Size = UDim2.new(1, -32, 0, 34),
-            Position = UDim2.new(0, 16, 1, -48),
+            Size = UDim2.new(1, -32, 0, 32),
+            Position = UDim2.new(0, 16, 1, -44),
             BackgroundTransparency = 1,
             ZIndex = 22,
             Parent = dialogBox
@@ -1098,7 +1273,7 @@ function HoshiUI:CreateWindow(config)
         createInstance("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
             HorizontalAlignment = Enum.HorizontalAlignment.Right,
-            Padding = UDim.new(0, 10),
+            Padding = UDim.new(0, 8),
             Parent = btnContainer
         })
 
@@ -1109,11 +1284,11 @@ function HoshiUI:CreateWindow(config)
 
             local dBtn = createInstance("TextButton", {
                 Name = "Btn_" .. btnData.Text,
-                Size = UDim2.new(0, 90, 1, 0),
+                Size = UDim2.new(0, 85, 1, 0),
                 BackgroundColor3 = btnBgColor,
                 Text = btnData.Text,
                 TextColor3 = Color3.fromRGB(255, 255, 255),
-                TextSize = 12,
+                TextSize = 11,
                 Font = Enum.Font.GothamBold,
                 AutoButtonColor = false,
                 ZIndex = 23,
@@ -1138,10 +1313,9 @@ function HoshiUI:CreateWindow(config)
         local tabTitle = tabConfig.Title or "Tab"
         local tabIcon = IconEngine.GetIcon(tabConfig.Icon or "folder")
 
-        -- Tab Sidebar Button
         local tabBtn = createInstance("TextButton", {
             Name = "TabBtn_" .. tabTitle,
-            Size = UDim2.new(1, 0, 0, 36),
+            Size = UDim2.new(1, 0, 0, 34),
             BackgroundColor3 = theme.Sidebar,
             BackgroundTransparency = 1,
             AutoButtonColor = false,
@@ -1151,38 +1325,38 @@ function HoshiUI:CreateWindow(config)
         addCorner(tabBtn, 8)
 
         local tabIconImg = nil
-        local textOffset = 12
+        local textOffset = 10
         if tabIcon then
             tabIconImg = createInstance("ImageLabel", {
                 Name = "Icon",
-                Size = UDim2.new(0, 18, 0, 18),
-                Position = UDim2.new(0, 12, 0.5, -9),
+                Size = UDim2.new(0, 16, 0, 16),
+                Position = UDim2.new(0, 10, 0.5, -8),
                 BackgroundTransparency = 1,
                 Image = tabIcon,
                 ImageColor3 = theme.SubText,
                 Parent = tabBtn
             })
-            textOffset = 38
+            textOffset = 34
         end
 
         local tabLabel = createInstance("TextLabel", {
             Name = "Title",
-            Size = UDim2.new(1, -textOffset - 10, 1, 0),
+            Size = UDim2.new(1, -textOffset - 8, 1, 0),
             Position = UDim2.new(0, textOffset, 0, 0),
             BackgroundTransparency = 1,
             Text = tabTitle,
             TextColor3 = theme.SubText,
-            TextSize = 13,
+            TextSize = 12,
             Font = Enum.Font.GothamBold,
             TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd,
             Parent = tabBtn
         })
 
-        -- Active Indicator Bar
         local activeBar = createInstance("Frame", {
             Name = "ActiveBar",
-            Size = UDim2.new(0, 3, 0, 18),
-            Position = UDim2.new(0, 0, 0.5, -9),
+            Size = UDim2.new(0, 3, 0, 16),
+            Position = UDim2.new(0, 0, 0.5, -8),
             BackgroundColor3 = theme.Accent,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
@@ -1190,7 +1364,6 @@ function HoshiUI:CreateWindow(config)
         })
         addCorner(activeBar, 2)
 
-        -- Page Container
         local page = createInstance("ScrollingFrame", {
             Name = "Page_" .. tabTitle,
             Size = UDim2.new(1, 0, 1, 0),
@@ -1202,7 +1375,7 @@ function HoshiUI:CreateWindow(config)
             Visible = false,
             Parent = contentArea
         })
-        addPadding(page, 14, 14, 14, 14)
+        addPadding(page, 12, 12, 12, 12)
         createInstance("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
             Padding = UDim.new(0, 8),
@@ -1218,26 +1391,25 @@ function HoshiUI:CreateWindow(config)
         local function activateTab()
             for _, otherTab in pairs(Window.Tabs) do
                 otherTab.Page.Visible = false
-                tween(otherTab.Button, { BackgroundTransparency = 1 }, 0.2)
+                tween(otherTab.Button, { BackgroundTransparency = 1 }, 0.18)
                 local otherIco = otherTab.Button:FindFirstChild("Icon")
-                if otherIco then tween(otherIco, { ImageColor3 = theme.SubText }, 0.2) end
+                if otherIco then tween(otherIco, { ImageColor3 = theme.SubText }, 0.18) end
                 local otherTitle = otherTab.Button:FindFirstChild("Title")
-                if otherTitle then tween(otherTitle, { TextColor3 = theme.SubText }, 0.2) end
+                if otherTitle then tween(otherTitle, { TextColor3 = theme.SubText }, 0.18) end
                 local otherBar = otherTab.Button:FindFirstChild("ActiveBar")
-                if otherBar then tween(otherBar, { BackgroundTransparency = 1 }, 0.2) end
+                if otherBar then tween(otherBar, { BackgroundTransparency = 1 }, 0.18) end
             end
 
             page.Visible = true
             Window.ActiveTab = Tab
-            tween(tabBtn, { BackgroundTransparency = 0.85, BackgroundColor3 = theme.Accent }, 0.2)
-            if tabIconImg then tween(tabIconImg, { ImageColor3 = theme.Accent }, 0.2) end
-            tween(tabLabel, { TextColor3 = theme.Text }, 0.2)
-            tween(activeBar, { BackgroundTransparency = 0 }, 0.2)
+            tween(tabBtn, { BackgroundTransparency = 0.85, BackgroundColor3 = theme.Accent }, 0.18)
+            if tabIconImg then tween(tabIconImg, { ImageColor3 = theme.Accent }, 0.18) end
+            tween(tabLabel, { TextColor3 = theme.Text }, 0.18)
+            tween(activeBar, { BackgroundTransparency = 0 }, 0.18)
         end
 
         tabBtn.MouseButton1Click:Connect(activateTab)
 
-        -- Hover effect
         tabBtn.MouseEnter:Connect(function()
             if Window.ActiveTab ~= Tab then
                 tween(tabBtn, { BackgroundTransparency = 0.9, BackgroundColor3 = theme.CardHover }, 0.15)
@@ -1253,7 +1425,6 @@ function HoshiUI:CreateWindow(config)
 
         table.insert(Window.Tabs, Tab)
 
-        -- Automatically select first tab
         if #Window.Tabs == 1 then
             activateTab()
         end
@@ -1262,18 +1433,18 @@ function HoshiUI:CreateWindow(config)
         -- TAB INTERACTIVE COMPONENTS BUILDER
         -- ==========================================================================
 
-        -- 1. SECTION / HEADER
+        -- 1. SECTION
         function Tab:CreateSection(title, subTitle)
             local secFrame = createInstance("Frame", {
                 Name = "Section_" .. title,
-                Size = UDim2.new(1, 0, 0, subTitle and 36 or 24),
+                Size = UDim2.new(1, 0, 0, subTitle and 34 or 22),
                 BackgroundTransparency = 1,
                 Parent = page
             })
 
             createInstance("TextLabel", {
                 Name = "SectionTitle",
-                Size = UDim2.new(1, 0, 0, 18),
+                Size = UDim2.new(1, 0, 0, 16),
                 BackgroundTransparency = 1,
                 Text = title:upper(),
                 TextColor3 = theme.Accent,
@@ -1287,7 +1458,7 @@ function HoshiUI:CreateWindow(config)
                 createInstance("TextLabel", {
                     Name = "SectionSubTitle",
                     Size = UDim2.new(1, 0, 0, 14),
-                    Position = UDim2.new(0, 0, 0, 18),
+                    Position = UDim2.new(0, 0, 0, 16),
                     BackgroundTransparency = 1,
                     Text = subTitle,
                     TextColor3 = theme.SubText,
@@ -1313,7 +1484,7 @@ function HoshiUI:CreateWindow(config)
 
             local btnCard = createInstance("TextButton", {
                 Name = "Button_" .. title,
-                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
+                Size = UDim2.new(1, 0, 0, desc and 46 or 36),
                 BackgroundColor3 = bgColor,
                 AutoButtonColor = false,
                 Text = "",
@@ -1322,28 +1493,28 @@ function HoshiUI:CreateWindow(config)
             addCorner(btnCard, 8)
             addStroke(btnCard, theme.Border, 1)
 
-            local textOffset = 14
+            local textOffset = 12
             if icon then
                 createInstance("ImageLabel", {
                     Name = "Icon",
-                    Size = UDim2.new(0, 18, 0, 18),
-                    Position = UDim2.new(0, 12, 0.5, -9),
+                    Size = UDim2.new(0, 16, 0, 16),
+                    Position = UDim2.new(0, 12, 0.5, -8),
                     BackgroundTransparency = 1,
                     Image = icon,
                     ImageColor3 = variant == "Primary" and Color3.fromRGB(255, 255, 255) or theme.Accent,
                     Parent = btnCard
                 })
-                textOffset = 38
+                textOffset = 36
             end
 
             local btnTitle = createInstance("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -textOffset - 14, 0, 18),
+                Size = UDim2.new(1, -textOffset - 12, 0, 16),
                 Position = UDim2.new(0, textOffset, 0, desc and 6 or 10),
                 BackgroundTransparency = 1,
                 Text = title,
                 TextColor3 = Color3.fromRGB(255, 255, 255),
-                TextSize = 13,
+                TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = btnCard
@@ -1352,8 +1523,8 @@ function HoshiUI:CreateWindow(config)
             if desc then
                 createInstance("TextLabel", {
                     Name = "Desc",
-                    Size = UDim2.new(1, -textOffset - 14, 0, 14),
-                    Position = UDim2.new(0, textOffset, 0, 26),
+                    Size = UDim2.new(1, -textOffset - 12, 0, 14),
+                    Position = UDim2.new(0, textOffset, 0, 24),
                     BackgroundTransparency = 1,
                     Text = desc,
                     TextColor3 = variant == "Primary" and Color3.fromRGB(220, 230, 255) or theme.SubText,
@@ -1364,11 +1535,10 @@ function HoshiUI:CreateWindow(config)
                 })
             end
 
-            -- Click Ripple / Bounce
             btnCard.MouseButton1Click:Connect(function()
-                tween(btnCard, { Size = UDim2.new(1, -4, 0, desc and 46 or 36) }, 0.08)
+                tween(btnCard, { Size = UDim2.new(1, -4, 0, desc and 44 or 34) }, 0.08)
                 task.wait(0.08)
-                tween(btnCard, { Size = UDim2.new(1, 0, 0, desc and 48 or 38) }, 0.08)
+                tween(btnCard, { Size = UDim2.new(1, 0, 0, desc and 46 or 36) }, 0.08)
                 pcall(callback)
             end)
 
@@ -1385,7 +1555,7 @@ function HoshiUI:CreateWindow(config)
             }
         end
 
-        -- 3. TOGGLE (With Auto-Save & Keybind Attachment)
+        -- 3. TOGGLE
         function Tab:CreateToggle(toggleConfig)
             toggleConfig = toggleConfig or {}
             local title = toggleConfig.Title or "Toggle"
@@ -1394,13 +1564,12 @@ function HoshiUI:CreateWindow(config)
             local default = toggleConfig.Default or false
             local callback = toggleConfig.Callback or function() end
 
-            -- Bind config
             local value = ConfigManager:RegisterFlag(flag, nil, default)
             if value == nil then value = default end
 
             local card = createInstance("TextButton", {
                 Name = "Toggle_" .. title,
-                Size = UDim2.new(1, 0, 0, desc and 48 or 40),
+                Size = UDim2.new(1, 0, 0, desc and 46 or 38),
                 BackgroundColor3 = theme.CardBackground,
                 AutoButtonColor = false,
                 Text = "",
@@ -1409,15 +1578,14 @@ function HoshiUI:CreateWindow(config)
             addCorner(card, 8)
             addStroke(card, theme.Border, 1)
 
-            -- Labels
             createInstance("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -70, 0, 18),
-                Position = UDim2.new(0, 14, 0, desc and 6 or 11),
+                Size = UDim2.new(1, -65, 0, 16),
+                Position = UDim2.new(0, 12, 0, desc and 6 or 11),
                 BackgroundTransparency = 1,
                 Text = title,
                 TextColor3 = theme.Text,
-                TextSize = 13,
+                TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = card
@@ -1426,8 +1594,8 @@ function HoshiUI:CreateWindow(config)
             if desc then
                 createInstance("TextLabel", {
                     Name = "Desc",
-                    Size = UDim2.new(1, -70, 0, 14),
-                    Position = UDim2.new(0, 14, 0, 26),
+                    Size = UDim2.new(1, -65, 0, 14),
+                    Position = UDim2.new(0, 12, 0, 24),
                     BackgroundTransparency = 1,
                     Text = desc,
                     TextColor3 = theme.SubText,
@@ -1438,25 +1606,23 @@ function HoshiUI:CreateWindow(config)
                 })
             end
 
-            -- Switch Track
             local switchTrack = createInstance("Frame", {
                 Name = "SwitchTrack",
-                Size = UDim2.new(0, 42, 0, 22),
-                Position = UDim2.new(1, -56, 0.5, -11),
+                Size = UDim2.new(0, 40, 0, 20),
+                Position = UDim2.new(1, -52, 0.5, -10),
                 BackgroundColor3 = value and theme.Accent or theme.ToggleOff,
                 Parent = card
             })
-            addCorner(switchTrack, 11)
+            addCorner(switchTrack, 10)
 
-            -- Switch Knob
             local switchKnob = createInstance("Frame", {
                 Name = "Knob",
-                Size = UDim2.new(0, 16, 0, 16),
-                Position = value and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8),
+                Size = UDim2.new(0, 14, 0, 14),
+                Position = value and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                 Parent = switchTrack
             })
-            addCorner(switchKnob, 8)
+            addCorner(switchKnob, 7)
 
             local ToggleObj = {}
 
@@ -1465,11 +1631,11 @@ function HoshiUI:CreateWindow(config)
                 if flag then ConfigManager:Set(flag, value) end
 
                 if value then
-                    tween(switchTrack, { BackgroundColor3 = theme.Accent }, 0.2)
-                    tween(switchKnob, { Position = UDim2.new(1, -19, 0.5, -8) }, 0.2, Enum.EasingStyle.Back)
+                    tween(switchTrack, { BackgroundColor3 = theme.Accent }, 0.18)
+                    tween(switchKnob, { Position = UDim2.new(1, -17, 0.5, -7) }, 0.18, Enum.EasingStyle.Back)
                 else
-                    tween(switchTrack, { BackgroundColor3 = theme.ToggleOff }, 0.2)
-                    tween(switchKnob, { Position = UDim2.new(0, 3, 0.5, -8) }, 0.2, Enum.EasingStyle.Back)
+                    tween(switchTrack, { BackgroundColor3 = theme.ToggleOff }, 0.18)
+                    tween(switchKnob, { Position = UDim2.new(0, 3, 0.5, -7) }, 0.18, Enum.EasingStyle.Back)
                 end
 
                 if not silent then
@@ -1507,7 +1673,7 @@ function HoshiUI:CreateWindow(config)
             return ToggleObj
         end
 
-        -- 4. SLIDER (With Smooth Drag, Tooltip & Auto-Save)
+        -- 4. SLIDER
         function Tab:CreateSlider(sliderConfig)
             sliderConfig = sliderConfig or {}
             local title = sliderConfig.Title or "Slider"
@@ -1526,7 +1692,7 @@ function HoshiUI:CreateWindow(config)
 
             local card = createInstance("Frame", {
                 Name = "Slider_" .. title,
-                Size = UDim2.new(1, 0, 0, desc and 58 or 48),
+                Size = UDim2.new(1, 0, 0, desc and 54 or 44),
                 BackgroundColor3 = theme.CardBackground,
                 Parent = page
             })
@@ -1535,12 +1701,12 @@ function HoshiUI:CreateWindow(config)
 
             createInstance("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -90, 0, 18),
-                Position = UDim2.new(0, 14, 0, 8),
+                Size = UDim2.new(1, -85, 0, 16),
+                Position = UDim2.new(0, 12, 0, 7),
                 BackgroundTransparency = 1,
                 Text = title,
                 TextColor3 = theme.Text,
-                TextSize = 13,
+                TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = card
@@ -1552,25 +1718,33 @@ function HoshiUI:CreateWindow(config)
 
             local valueDisplay = createInstance("TextLabel", {
                 Name = "ValueDisplay",
-                Size = UDim2.new(0, 70, 0, 18),
-                Position = UDim2.new(1, -84, 0, 8),
+                Size = UDim2.new(0, 70, 0, 16),
+                Position = UDim2.new(1, -80, 0, 7),
                 BackgroundTransparency = 1,
                 Text = formatValue(value),
                 TextColor3 = theme.Accent,
-                TextSize = 12,
+                TextSize = 11,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Right,
                 Parent = card
             })
 
-            -- Track Bar
-            local track = createInstance("ImageButton", {
-                Name = "Track",
-                Size = UDim2.new(1, -28, 0, 6),
-                Position = UDim2.new(0, 14, 1, -16),
-                BackgroundColor3 = theme.ToggleOff,
+            local trackHitbox = createInstance("ImageButton", {
+                Name = "TrackHitbox",
+                Size = UDim2.new(1, -24, 0, 20),
+                Position = UDim2.new(0, 12, 1, -24),
+                BackgroundTransparency = 1,
                 AutoButtonColor = false,
                 Parent = card
+            })
+
+            local track = createInstance("Frame", {
+                Name = "Track",
+                Size = UDim2.new(1, 0, 0, 6),
+                Position = UDim2.new(0, 0, 0.5, -3),
+                BackgroundColor3 = theme.ToggleOff,
+                BorderSizePixel = 0,
+                Parent = trackHitbox
             })
             addCorner(track, 3)
 
@@ -1604,7 +1778,7 @@ function HoshiUI:CreateWindow(config)
                 value = v
                 local newPct = (value - min) / (max - min)
 
-                tween(fill, { Size = UDim2.new(newPct, 0, 1, 0) }, 0.08)
+                tween(fill, { Size = UDim2.new(newPct, 0, 1, 0) }, 0.05)
                 valueDisplay.Text = formatValue(value)
 
                 if flag then ConfigManager:Set(flag, value) end
@@ -1621,7 +1795,7 @@ function HoshiUI:CreateWindow(config)
                 updateFromValue(calculated)
             end
 
-            track.InputBegan:Connect(function(input)
+            trackHitbox.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     isDragging = true
                     updateFromInput(input)
@@ -1653,7 +1827,7 @@ function HoshiUI:CreateWindow(config)
             return SliderObj
         end
 
-        -- 5. DROPDOWN (Single & Multi-Select with Auto-Save)
+        -- 5. DROPDOWN
         function Tab:CreateDropdown(dropConfig)
             dropConfig = dropConfig or {}
             local title = dropConfig.Title or "Dropdown"
@@ -1669,7 +1843,7 @@ function HoshiUI:CreateWindow(config)
             local isExpanded = false
             local card = createInstance("Frame", {
                 Name = "Dropdown_" .. title,
-                Size = UDim2.new(1, 0, 0, 48),
+                Size = UDim2.new(1, 0, 0, 44),
                 BackgroundColor3 = theme.CardBackground,
                 ClipsDescendants = true,
                 Parent = page
@@ -1679,7 +1853,7 @@ function HoshiUI:CreateWindow(config)
 
             local headerBtn = createInstance("TextButton", {
                 Name = "HeaderBtn",
-                Size = UDim2.new(1, 0, 0, 48),
+                Size = UDim2.new(1, 0, 0, 44),
                 BackgroundTransparency = 1,
                 Text = "",
                 Parent = card
@@ -1687,12 +1861,12 @@ function HoshiUI:CreateWindow(config)
 
             createInstance("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(0.5, 0, 0, 18),
-                Position = UDim2.new(0, 14, 0, 8),
+                Size = UDim2.new(0.5, 0, 0, 16),
+                Position = UDim2.new(0, 12, 0, 8),
                 BackgroundTransparency = 1,
                 Text = title,
                 TextColor3 = theme.Text,
-                TextSize = 13,
+                TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = headerBtn
@@ -1711,11 +1885,11 @@ function HoshiUI:CreateWindow(config)
             local valLabel = createInstance("TextLabel", {
                 Name = "ValLabel",
                 Size = UDim2.new(0.4, 0, 0, 16),
-                Position = UDim2.new(0.6, -34, 0, 16),
+                Position = UDim2.new(0.6, -30, 0, 14),
                 BackgroundTransparency = 1,
                 Text = getDisplayString(),
                 TextColor3 = theme.Accent,
-                TextSize = 12,
+                TextSize = 11,
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Right,
                 TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1724,19 +1898,18 @@ function HoshiUI:CreateWindow(config)
 
             local arrowIco = createInstance("ImageLabel", {
                 Name = "Arrow",
-                Size = UDim2.new(0, 16, 0, 16),
-                Position = UDim2.new(1, -28, 0.5, -8),
+                Size = UDim2.new(0, 14, 0, 14),
+                Position = UDim2.new(1, -26, 0.5, -7),
                 BackgroundTransparency = 1,
                 Image = IconEngine.GetIcon("chevron-down"),
                 ImageColor3 = theme.SubText,
                 Parent = headerBtn
             })
 
-            -- Options Scroll Area
             local optContainer = createInstance("ScrollingFrame", {
                 Name = "OptionsList",
-                Size = UDim2.new(1, -20, 0, 120),
-                Position = UDim2.new(0, 10, 0, 50),
+                Size = UDim2.new(1, -20, 0, 110),
+                Position = UDim2.new(0, 10, 0, 46),
                 BackgroundTransparency = 1,
                 ScrollBarThickness = 2,
                 ScrollBarImageColor3 = theme.Border,
@@ -1767,7 +1940,7 @@ function HoshiUI:CreateWindow(config)
 
                     local optBtn = createInstance("TextButton", {
                         Name = "Opt_" .. opt,
-                        Size = UDim2.new(1, 0, 0, 28),
+                        Size = UDim2.new(1, 0, 0, 26),
                         BackgroundColor3 = isSelected and theme.CardHover or theme.Sidebar,
                         AutoButtonColor = false,
                         Text = "",
@@ -1777,12 +1950,12 @@ function HoshiUI:CreateWindow(config)
 
                     createInstance("TextLabel", {
                         Name = "Label",
-                        Size = UDim2.new(1, -30, 1, 0),
-                        Position = UDim2.new(0, 10, 0, 0),
+                        Size = UDim2.new(1, -28, 1, 0),
+                        Position = UDim2.new(0, 8, 0, 0),
                         BackgroundTransparency = 1,
                         Text = tostring(opt),
                         TextColor3 = isSelected and theme.Accent or theme.Text,
-                        TextSize = 12,
+                        TextSize = 11,
                         Font = Enum.Font.GothamMedium,
                         TextXAlignment = Enum.TextXAlignment.Left,
                         Parent = optBtn
@@ -1791,8 +1964,8 @@ function HoshiUI:CreateWindow(config)
                     if isSelected then
                         createInstance("ImageLabel", {
                             Name = "Check",
-                            Size = UDim2.new(0, 14, 0, 14),
-                            Position = UDim2.new(1, -22, 0.5, -7),
+                            Size = UDim2.new(0, 12, 0, 12),
+                            Position = UDim2.new(1, -20, 0.5, -6),
                             BackgroundTransparency = 1,
                             Image = IconEngine.GetIcon("check"),
                             ImageColor3 = theme.Accent,
@@ -1812,8 +1985,8 @@ function HoshiUI:CreateWindow(config)
                         else
                             currentVal = opt
                             isExpanded = false
-                            tween(card, { Size = UDim2.new(1, 0, 0, 48) }, 0.2)
-                            tween(arrowIco, { Rotation = 0 }, 0.2)
+                            tween(card, { Size = UDim2.new(1, 0, 0, 44) }, 0.18)
+                            tween(arrowIco, { Rotation = 0 }, 0.18)
                         end
 
                         valLabel.Text = getDisplayString()
@@ -1827,12 +2000,12 @@ function HoshiUI:CreateWindow(config)
             headerBtn.MouseButton1Click:Connect(function()
                 isExpanded = not isExpanded
                 if isExpanded then
-                    local targetH = math.min(50 + #options * 32, 180)
-                    tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.2)
-                    tween(arrowIco, { Rotation = 180 }, 0.2)
+                    local targetH = math.min(46 + #options * 30, 160)
+                    tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.18)
+                    tween(arrowIco, { Rotation = 180 }, 0.18)
                 else
-                    tween(card, { Size = UDim2.new(1, 0, 0, 48) }, 0.2)
-                    tween(arrowIco, { Rotation = 0 }, 0.2)
+                    tween(card, { Size = UDim2.new(1, 0, 0, 44) }, 0.18)
+                    tween(arrowIco, { Rotation = 0 }, 0.18)
                 end
             end)
 
@@ -1858,7 +2031,7 @@ function HoshiUI:CreateWindow(config)
             return DropdownObj
         end
 
-        -- 6. COLOR PICKER (With Live Preview & HSV/Hex Auto-Save)
+        -- 6. COLOR PICKER
         function Tab:CreateColorPicker(colorConfig)
             colorConfig = colorConfig or {}
             local title = colorConfig.Title or "Color Picker"
@@ -1871,7 +2044,7 @@ function HoshiUI:CreateWindow(config)
 
             local card = createInstance("Frame", {
                 Name = "ColorPicker_" .. title,
-                Size = UDim2.new(1, 0, 0, 42),
+                Size = UDim2.new(1, 0, 0, 38),
                 BackgroundColor3 = theme.CardBackground,
                 Parent = page
             })
@@ -1880,12 +2053,12 @@ function HoshiUI:CreateWindow(config)
 
             createInstance("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -80, 1, 0),
-                Position = UDim2.new(0, 14, 0, 0),
+                Size = UDim2.new(1, -75, 1, 0),
+                Position = UDim2.new(0, 12, 0, 0),
                 BackgroundTransparency = 1,
                 Text = title,
                 TextColor3 = theme.Text,
-                TextSize = 13,
+                TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = card
@@ -1893,8 +2066,8 @@ function HoshiUI:CreateWindow(config)
 
             local colorPill = createInstance("TextButton", {
                 Name = "ColorPill",
-                Size = UDim2.new(0, 44, 0, 22),
-                Position = UDim2.new(1, -58, 0.5, -11),
+                Size = UDim2.new(0, 40, 0, 20),
+                Position = UDim2.new(1, -52, 0.5, -10),
                 BackgroundColor3 = currentColor,
                 AutoButtonColor = false,
                 Text = "",
@@ -1905,11 +2078,10 @@ function HoshiUI:CreateWindow(config)
 
             local ColorObj = {}
 
-            -- Color Picker Dialog Popup
             colorPill.MouseButton1Click:Connect(function()
                 Window:Dialog({
-                    Title = "Adjust Color: " .. title,
-                    Content = "Select a preset color below or keep current.",
+                    Title = "Color: " .. title,
+                    Content = "Choose an accent preset:",
                     Buttons = {
                         { Text = "Blue", Callback = function() ColorObj:SetValue(Color3.fromRGB(75, 130, 255)) end },
                         { Text = "Green", Callback = function() ColorObj:SetValue(Color3.fromRGB(46, 204, 113)) end },
@@ -1936,7 +2108,7 @@ function HoshiUI:CreateWindow(config)
             return ColorObj
         end
 
-        -- 7. KEYBIND (With Dynamic Listener & Auto-Save)
+        -- 7. KEYBIND
         function Tab:CreateKeybind(keyConfig)
             keyConfig = keyConfig or {}
             local title = keyConfig.Title or "Keybind"
@@ -1951,7 +2123,7 @@ function HoshiUI:CreateWindow(config)
 
             local card = createInstance("Frame", {
                 Name = "Keybind_" .. title,
-                Size = UDim2.new(1, 0, 0, 42),
+                Size = UDim2.new(1, 0, 0, 38),
                 BackgroundColor3 = theme.CardBackground,
                 Parent = page
             })
@@ -1960,12 +2132,12 @@ function HoshiUI:CreateWindow(config)
 
             createInstance("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -110, 1, 0),
-                Position = UDim2.new(0, 14, 0, 0),
+                Size = UDim2.new(1, -100, 1, 0),
+                Position = UDim2.new(0, 12, 0, 0),
                 BackgroundTransparency = 1,
                 Text = title,
                 TextColor3 = theme.Text,
-                TextSize = 13,
+                TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = card
@@ -1973,8 +2145,8 @@ function HoshiUI:CreateWindow(config)
 
             local keyBadge = createInstance("TextButton", {
                 Name = "Badge",
-                Size = UDim2.new(0, 75, 0, 24),
-                Position = UDim2.new(1, -89, 0.5, -12),
+                Size = UDim2.new(0, 70, 0, 22),
+                Position = UDim2.new(1, -82, 0.5, -11),
                 BackgroundColor3 = theme.Sidebar,
                 AutoButtonColor = false,
                 Text = currentKey.Name,
@@ -2022,7 +2194,7 @@ function HoshiUI:CreateWindow(config)
             return KeybindObj
         end
 
-        -- 8. INPUT / TEXTBOX (With Auto-Save)
+        -- 8. INPUT
         function Tab:CreateInput(inputConfig)
             inputConfig = inputConfig or {}
             local title = inputConfig.Title or "Input"
@@ -2037,7 +2209,7 @@ function HoshiUI:CreateWindow(config)
 
             local card = createInstance("Frame", {
                 Name = "Input_" .. title,
-                Size = UDim2.new(1, 0, 0, 44),
+                Size = UDim2.new(1, 0, 0, 40),
                 BackgroundColor3 = theme.CardBackground,
                 Parent = page
             })
@@ -2047,11 +2219,11 @@ function HoshiUI:CreateWindow(config)
             createInstance("TextLabel", {
                 Name = "Title",
                 Size = UDim2.new(0.4, 0, 1, 0),
-                Position = UDim2.new(0, 14, 0, 0),
+                Position = UDim2.new(0, 12, 0, 0),
                 BackgroundTransparency = 1,
                 Text = title,
                 TextColor3 = theme.Text,
-                TextSize = 13,
+                TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = card
@@ -2059,8 +2231,8 @@ function HoshiUI:CreateWindow(config)
 
             local boxContainer = createInstance("Frame", {
                 Name = "BoxContainer",
-                Size = UDim2.new(0.55, 0, 0, 26),
-                Position = UDim2.new(0.45, -14, 0.5, -13),
+                Size = UDim2.new(0.55, 0, 0, 24),
+                Position = UDim2.new(0.45, -12, 0.5, -12),
                 BackgroundColor3 = theme.Sidebar,
                 Parent = card
             })
@@ -2069,14 +2241,14 @@ function HoshiUI:CreateWindow(config)
 
             local textBox = createInstance("TextBox", {
                 Name = "TextBox",
-                Size = UDim2.new(1, -12, 1, 0),
-                Position = UDim2.new(0, 6, 0, 0),
+                Size = UDim2.new(1, -10, 1, 0),
+                Position = UDim2.new(0, 5, 0, 0),
                 BackgroundTransparency = 1,
                 Text = currentText,
                 PlaceholderText = placeholder,
                 PlaceholderColor3 = theme.SubText,
                 TextColor3 = theme.Text,
-                TextSize = 12,
+                TextSize = 11,
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ClearTextOnFocus = false,
@@ -2116,7 +2288,7 @@ function HoshiUI:CreateWindow(config)
             return InputObj
         end
 
-        -- 9. PARAGRAPH / INFO CARD
+        -- 9. PARAGRAPH
         function Tab:CreateParagraph(paraConfig)
             paraConfig = paraConfig or {}
             local title = paraConfig.Title or "Information"
@@ -2125,37 +2297,37 @@ function HoshiUI:CreateWindow(config)
 
             local card = createInstance("Frame", {
                 Name = "Paragraph_" .. title,
-                Size = UDim2.new(1, 0, 0, 64),
+                Size = UDim2.new(1, 0, 0, 58),
                 BackgroundColor3 = theme.CardBackground,
                 AutomaticSize = Enum.AutomaticSize.Y,
                 Parent = page
             })
             addCorner(card, 8)
             addStroke(card, theme.Border, 1)
-            addPadding(card, 10, 10, 12, 12)
+            addPadding(card, 10, 10, 10, 10)
 
             local textOffset = 0
             if icon then
                 createInstance("ImageLabel", {
                     Name = "Icon",
-                    Size = UDim2.new(0, 18, 0, 18),
+                    Size = UDim2.new(0, 16, 0, 16),
                     Position = UDim2.new(0, 0, 0, 2),
                     BackgroundTransparency = 1,
                     Image = icon,
                     ImageColor3 = theme.Accent,
                     Parent = card
                 })
-                textOffset = 26
+                textOffset = 24
             end
 
             local pTitle = createInstance("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -textOffset, 0, 18),
+                Size = UDim2.new(1, -textOffset, 0, 16),
                 Position = UDim2.new(0, textOffset, 0, 0),
                 BackgroundTransparency = 1,
                 Text = title,
                 TextColor3 = theme.Text,
-                TextSize = 13,
+                TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Parent = card
@@ -2164,11 +2336,11 @@ function HoshiUI:CreateWindow(config)
             local pContent = createInstance("TextLabel", {
                 Name = "Content",
                 Size = UDim2.new(1, -textOffset, 0, 0),
-                Position = UDim2.new(0, textOffset, 0, 22),
+                Position = UDim2.new(0, textOffset, 0, 18),
                 BackgroundTransparency = 1,
                 Text = content,
                 TextColor3 = theme.SubText,
-                TextSize = 11,
+                TextSize = 10,
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextWrapped = true,
@@ -2187,7 +2359,7 @@ function HoshiUI:CreateWindow(config)
         function Tab:CreateDivider(text)
             local divFrame = createInstance("Frame", {
                 Name = "Divider",
-                Size = UDim2.new(1, 0, 0, text and 22 or 10),
+                Size = UDim2.new(1, 0, 0, text and 20 or 8),
                 BackgroundTransparency = 1,
                 Parent = page
             })
@@ -2199,7 +2371,7 @@ function HoshiUI:CreateWindow(config)
                     BackgroundTransparency = 1,
                     Text = text,
                     TextColor3 = theme.SubText,
-                    TextSize = 11,
+                    TextSize = 10,
                     Font = Enum.Font.GothamBold,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Parent = divFrame
@@ -2238,6 +2410,13 @@ function HoshiUI:CreateWindow(config)
         subTitleLabel.TextColor3 = targetTheme.SubText
         if topIcon then topIcon.ImageColor3 = targetTheme.Accent end
         sidebar.BackgroundColor3 = targetTheme.Sidebar
+        if floatingBtn then
+            floatingBtn.BackgroundColor3 = targetTheme.Background
+            local fStroke = floatingBtn:FindFirstChildOfClass("UIStroke")
+            if fStroke then fStroke.Color = targetTheme.Accent end
+            local fIco = floatingBtn:FindFirstChild("Icon")
+            if fIco then fIco.ImageColor3 = targetTheme.Accent end
+        end
     end
 
     table.insert(HoshiUI.Windows, Window)
