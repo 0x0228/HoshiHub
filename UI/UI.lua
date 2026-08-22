@@ -224,9 +224,9 @@ local BuiltinIcons = {
     ["close"] = "rbxassetid://7734091286",
     ["minus"] = "rbxassetid://7733964923",
     ["dash"] = "rbxassetid://7733964923",
-    ["chevron-up"] = "rbxassetid://7733773781",
+    ["chevron-up"] = "rbxassetid://9886659276",
     ["minimize"] = "rbxassetid://7733964923",
-    ["chevron-down"] = "rbxassetid://7733773673",
+    ["chevron-down"] = "rbxassetid://10709790948",
     ["chevron-left"] = "rbxassetid://7733773602",
     ["chevron-right"] = "rbxassetid://7733773708",
     ["check"] = "rbxassetid://7733773094",
@@ -2032,12 +2032,12 @@ function HoshiUI:CreateWindow(config)
             local arrowIcon = Creator.New("ImageLabel", {
                 Name = "Arrow",
                 Size = UDim2.new(0, 14, 0, 14),
-                Position = UDim2.new(1, -24, 0, (baseH / 2) - 7),
+                Position = UDim2.new(1, -26, 0, (baseH / 2) - 7),
                 BackgroundTransparency = 1,
                 Active = false,
-                Image = IconEngine.GetIcon("chevron-down"),
-                ImageColor3 = Theme.SubText,
-                ZIndex = 4,
+                Image = "rbxassetid://10709790948",
+                ImageColor3 = Theme.Accent,
+                ZIndex = 6,
                 Parent = card
             })
 

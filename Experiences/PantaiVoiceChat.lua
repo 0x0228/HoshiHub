@@ -594,44 +594,88 @@ TabFishing:CreateSlider({
     end
 })
 
+-- Universal Sell Function with Merchant ProximityPrompt & Token Hook
+local currentSellToken = nil
+if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
+    JualIkanRemote.OnClientEvent:Connect(function(token, ...)
+        if typeof(token) == "string" and token ~= "" then
+            currentSellToken = token
+            pcall(function() JualIkanRemote:FireServer("SellAll", token) end)
+        end
+    end)
+end
+
+local function sellAllFishUniversal()
+    pcall(function()
+        local prompt = Workspace:FindFirstChild("SellFish") and Workspace.SellFish:FindFirstChild("ProximityPrompt")
+        if prompt and fireproximityprompt then
+            fireproximityprompt(prompt)
+        end
+        if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
+            if currentSellToken then
+                JualIkanRemote:FireServer("SellAll", currentSellToken)
+            else
+                JualIkanRemote:FireServer("SellAll")
+            end
+        end
+        if SellFishRemote and SellFishRemote:IsA("RemoteEvent") then
+            SellFishRemote:FireServer()
+        end
+        task.delay(0.3, function()
+            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            local jualGui = pg and pg:FindFirstChild("JualGui")
+            if jualGui then
+                local mf = jualGui:FindFirstChild("MainFrame")
+                if mf then mf.Visible = false end
+                jualGui.Enabled = false
+            end
+        end)
+    end)
+end
+
 TabFishing:CreateSection("Selling & Inventory")
 
 TabFishing:CreateButton({
     Title = "Sell All Fish Now (Jual Semua Ikan)",
     Callback = function()
-        pcall(function()
-            if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
-                JualIkanRemote:FireServer("SellAll", "SellAll")
-            end
-            if SellFishRemote and SellFishRemote:IsA("RemoteEvent") then
-                SellFishRemote:FireServer()
-            end
-        end)
-        Window:Notify({ Title = "Fish Sold", Content = "Mengirim sinyal jual semua ikan ke server.", Duration = 2 })
+        sellAllFishUniversal()
+        Window:Notify({ Title = "Fish Sold", Content = "Menjual semua ikan ke Merchant Pantai.", Duration = 2 })
     end
 })
 
 local function getOwnedRods()
     local rods = {}
+    local seen = {}
+    
+    local function addRod(name)
+        if name and not seen[name] then
+            seen[name] = true
+            table.insert(rods, name)
+        end
+    end
+    
     local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
     local char = LocalPlayer.Character
     if bp then
         for _, item in ipairs(bp:GetChildren()) do
             if item:IsA("Tool") and (item.Name:find("Rod") or item:FindFirstChild("CastToPosition")) then
-                table.insert(rods, item.Name)
+                addRod(item.Name)
             end
         end
     end
     if char then
         for _, item in ipairs(char:GetChildren()) do
             if item:IsA("Tool") and (item.Name:find("Rod") or item:FindFirstChild("CastToPosition")) then
-                table.insert(rods, item.Name)
+                addRod(item.Name)
             end
         end
     end
-    if #rods == 0 then
-        rods = { "NormalRod", "ForestRod", "LovingRod", "AngelRod", "CrystalizedRod", "SeaRod", "ZeusRod", "ZombieRod", "VIPRod" }
+    
+    local knownRods = { "NormalRod", "ForestRod", "LovingRod", "AngelRod", "CrystalizedRod", "SeaRod", "ZeusRod", "ZombieRod", "VIPRod" }
+    for _, r in ipairs(knownRods) do
+        addRod(r)
     end
+    
     return rods
 end
 
@@ -668,7 +712,7 @@ TabFishing:CreateButton({
     Callback = function()
         local updated = getOwnedRods()
         RodDropdown:SetValues(updated)
-        Window:Notify({ Title = "Refreshed", Content = "Ditemukan " .. #updated .. " joran pancing.", Duration = 2 })
+        Window:Notify({ Title = "Refreshed", Content = "Rods list updated (" .. #updated .. " rods available).", Duration = 2 })
     end
 })
 
