@@ -3,36 +3,26 @@
 -- Load with: loadstring(game:HttpGet("https://raw.githubusercontent.com/0x0228/HoshiHub/master/init.lua"))()
 -- ==============================================================================
 
-local Mirrors = {
-    "https://raw.githubusercontent.com/0x0228/HoshiHub/master",
-    "https://cdn.jsdelivr.net/gh/0x0228/HoshiHub@master",
-    "https://raw.githubusercontent.com/0x0228/HoshiHub/refs/heads/master"
-}
+local GITHUB_RAW = "https://raw.githubusercontent.com/0x0228/HoshiHub/master"
 
 local function loadHubModule(subPath)
-    local lastError = "No mirror reachable"
-    for _, base in ipairs(Mirrors) do
-        local url = base .. "/" .. subPath
-        local success, content = pcall(function()
-            return game:HttpGet(url)
-        end)
-        if success and content and #content > 50 and not content:find("404: Not Found") and not content:find("404 Not Found") then
-            local fn, parseErr = loadstring(content)
-            if fn then
-                local runSuccess, result = pcall(fn)
-                if runSuccess then
-                    return result
-                else
-                    lastError = "Runtime error in " .. subPath .. ": " .. tostring(result)
-                end
-            else
-                lastError = "Compile error in " .. subPath .. ": " .. tostring(parseErr)
-            end
-        else
-            lastError = "HTTP fetch failed: " .. tostring(content)
-        end
+    local url = GITHUB_RAW .. "/" .. subPath
+    local success, content = pcall(game.HttpGet, game, url)
+    if not success or not content or type(content) ~= "string" or #content < 100 then
+        error("[HoshiHub] Failed to fetch " .. subPath .. " (" .. url .. "): " .. tostring(content))
     end
-    error("[HoshiHub] Could not load module '" .. subPath .. "': " .. lastError)
+
+    local fn, parseErr = loadstring(content)
+    if not fn then
+        error("[HoshiHub] Compile error in " .. subPath .. ": " .. tostring(parseErr))
+    end
+
+    local runSuccess, result = pcall(fn)
+    if not runSuccess then
+        error("[HoshiHub] Runtime error in " .. subPath .. ": " .. tostring(result))
+    end
+
+    return result
 end
 
 -- Launch the official HoshiHub Loader & Gateway
