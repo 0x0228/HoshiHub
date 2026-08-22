@@ -1945,7 +1945,7 @@ function HoshiUI:CreateWindow(config)
             dropdownConfig = dropdownConfig or {}
             local title = dropdownConfig.Title or "Dropdown"
             local desc = dropdownConfig.Desc
-            local options = dropdownConfig.Options or {}
+            local options = dropdownConfig.Values or dropdownConfig.Options or {}
             local isMulti = dropdownConfig.Multi or false
             local default = dropdownConfig.Default or (isMulti and {} or options[1] or "")
             local flag = dropdownConfig.Flag

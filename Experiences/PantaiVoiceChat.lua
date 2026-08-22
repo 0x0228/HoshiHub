@@ -24,7 +24,7 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
 -- Fishing System Remotes Reference
-local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem", 10)
+local FishingSystem = ReplicatedStorage:FindFirstChild("FishingSystem")
 local Events = FishingSystem and FishingSystem:FindFirstChild("Events")
 local Remotes = FishingSystem and FishingSystem:FindFirstChild("Remotes")
 
@@ -90,12 +90,12 @@ local currentSessionId = nil
 
 -- Character Utility Helper
 local function getCharacter()
-    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    return LocalPlayer.Character
 end
 
 local function getHumanoid()
     local char = getCharacter()
-    return char:FindFirstChildOfClass("Humanoid")
+    return char and char:FindFirstChildOfClass("Humanoid")
 end
 
 local function getRootPart()
@@ -204,7 +204,7 @@ local function hookRodRemotes(rod)
     if not rod or hookedRods[rod] then return end
     hookedRods[rod] = true
     
-    local mg = rod:FindFirstChild("MiniGame") or rod:WaitForChild("MiniGame", 2)
+    local mg = rod:FindFirstChild("MiniGame")
     if mg and mg:IsA("RemoteEvent") then
         mg.OnClientEvent:Connect(function(arg1, arg2)
             local action = type(arg1) == "table" and (arg1.Action or arg1.action or arg1.Status or arg1.status or arg1[1]) or arg1
@@ -241,10 +241,10 @@ local function scanAndHookTools()
         end)
     end
 end
-scanAndHookTools()
-LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-    scanAndHookTools()
+task.spawn(scanAndHookTools)
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.2)
+    task.spawn(scanAndHookTools)
 end)
 
 -- Hook PlayerGui for MiniGameGUI lifecycle
