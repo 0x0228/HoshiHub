@@ -621,8 +621,11 @@ function ConfigManager:Init(folderName, fileName, autoSave)
     self.Folder = folderName or "HoshiHub"
     self.File = fileName or "Config.json"
     self.AutoSave = (autoSave ~= false)
-    if makefolder and not isfolder(self.Folder) then
+    if makefolder and isfolder and not isfolder(self.Folder) then
         pcall(makefolder, self.Folder)
+    end
+    if self.AutoSave then
+        self:Load()
     end
 end
 
@@ -640,6 +643,9 @@ end
 
 function ConfigManager:Save()
     if not writefile then return end
+    if makefolder and isfolder and not isfolder(self.Folder) then
+        pcall(makefolder, self.Folder)
+    end
     local filePath = self.Folder .. "/" .. self.File
     local data = {}
     for k, v in pairs(self.Flags) do
