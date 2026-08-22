@@ -508,20 +508,35 @@ local function executeScript()
     closeAnim:Play()
     closeAnim.Completed:Connect(function()
         screenGui:Destroy()
-        -- Load target script from GitHub repository
-        local url = LoaderConfig.GitHubRaw .. "/" .. targetScript
-        local success, scriptContent = pcall(function()
-            return game:HttpGet(url)
-        end)
-        if success and scriptContent and scriptContent ~= "" and not scriptContent:find("404: Not Found") then
-            local execSuccess, execErr = pcall(function()
-                loadstring(scriptContent)()
+        -- Load target script with multi-mirror CDN fallbacks
+        local mirrors = {
+            LoaderConfig.GitHubRaw,
+            "https://cdn.jsdelivr.net/gh/0x0228/HoshiHub@master",
+            "https://raw.githubusercontent.com/0x0228/HoshiHub/refs/heads/master"
+        }
+        local loaded = false
+        for _, base in ipairs(mirrors) do
+            local url = base .. "/" .. targetScript
+            local success, scriptContent = pcall(function()
+                return game:HttpGet(url)
             end)
-            if not execSuccess then
-                warn("[HoshiHub Loader] Execution Error: " .. tostring(execErr))
+            if success and scriptContent and #scriptContent > 50 and not scriptContent:find("404: Not Found") and not scriptContent:find("404 Not Found") then
+                local fn, parseErr = loadstring(scriptContent)
+                if fn then
+                    local execSuccess, execErr = pcall(fn)
+                    if execSuccess then
+                        loaded = true
+                        break
+                    else
+                        warn("[HoshiHub Loader] Execution Error: " .. tostring(execErr))
+                    end
+                else
+                    warn("[HoshiHub Loader] Syntax Error: " .. tostring(parseErr))
+                end
             end
-        else
-            warn("[HoshiHub Loader] Failed to fetch script: " .. url)
+        end
+        if not loaded then
+            warn("[HoshiHub Loader] Failed to fetch target script: " .. targetScript)
         end
     end)
 end
