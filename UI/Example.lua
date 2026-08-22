@@ -438,24 +438,7 @@ local SettingsTab = Window:CreateTab({
     Icon = "lucide:settings"
 })
 
-SettingsTab:CreateSection("Theme & Scaling", "Switch themes and adjust interface scale dynamically")
-
-SettingsTab:CreateDropdown({
-    Title = "Select Theme Preset",
-    Options = { "Hoshi", "Dark", "Midnight", "Amethyst", "Emerald", "Rose", "Cyberpunk" },
-    Default = "Hoshi",
-    Flag = "Showcase_Theme",
-    Callback = function(selectedTheme)
-        Window:SetTheme(selectedTheme)
-        Window:Notify({
-            Title = "Theme Applied",
-            Content = "Switched to theme: " .. selectedTheme,
-            Icon = "95445676600352",
-            Type = "Info",
-            Duration = 2
-        })
-    end
-})
+SettingsTab:CreateSection("Interface & Scaling", "Adjust interface scale dynamically")
 
 SettingsTab:CreateSlider({
     Title = "Interface Scale",

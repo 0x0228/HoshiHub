@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- HoshiUI — Premium, Lightweight & High-Performance Roblox UI Library
--- Architecture engineered with Flipper Spring Physics & Fluent Theme Tagging
+-- Engineered with Flipper Spring Physics & Signature Cosmic Aesthetic
 -- Repository: 0x0228/HoshiHub
 -- ==============================================================================
 
@@ -184,193 +184,29 @@ function SingleMotor:stop()
     end
 end
 
-local GroupMotor = setmetatable({}, BaseMotor)
-GroupMotor.__index = GroupMotor
-
-function GroupMotor.new(initialValues)
-    local self = setmetatable(BaseMotor.new(), GroupMotor)
-    self._state = {}
-    for k, v in pairs(initialValues) do
-        self._state[k] = { position = v, velocity = 0, complete = true }
-    end
-    self._goal = {}
-    self._connection = nil
-    return self
-end
-
-function GroupMotor:getValue()
-    local values = {}
-    for k, s in pairs(self._state) do values[k] = s.position end
-    return values
-end
-
-function GroupMotor:setGoal(goals)
-    self._goal = goals
-    for k, goal in pairs(goals) do
-        if type(goal) == "number" then
-            self._goal[k] = Spring.new(goal)
-        end
-        if self._state[k] then self._state[k].complete = false end
-    end
-    self:_start()
-end
-
-function GroupMotor:_start()
-    if self._connection then return end
-    self._connection = RunService.RenderStepped:Connect(function(dt)
-        local allComplete = true
-        local currentValues = {}
-        for k, goal in pairs(self._goal) do
-            if self._state[k] then
-                local nextState = goal:step(self._state[k], dt)
-                self._state[k] = nextState
-                currentValues[k] = nextState.position
-                if not nextState.complete then allComplete = false end
-            end
-        end
-        self._onStep:Fire(currentValues)
-        if allComplete then
-            self._onComplete:Fire()
-            self:stop()
-        end
-    end)
-end
-
-function GroupMotor:stop()
-    if self._connection then
-        self._connection:Disconnect()
-        self._connection = nil
-    end
-end
-
 Flipper.Spring = Spring
 Flipper.Instant = Instant
 Flipper.SingleMotor = SingleMotor
-Flipper.GroupMotor = GroupMotor
 
 -- ==============================================================================
--- 3. THEME REGISTRY & PRESETS
+-- 3. SIGNATURE COSMIC HOSHI PALETTE (Locked & Unified)
 -- ==============================================================================
-local Themes = {
-    ["Hoshi"] = {
-        Background = Color3.fromRGB(15, 20, 29),       -- Deep cosmic navy
-        CardBackground = Color3.fromRGB(24, 32, 45),   -- Starry slate container
-        CardHover = Color3.fromRGB(33, 44, 61),        -- Celestial luminous hover
-        CardStroke = Color3.fromRGB(48, 64, 88),       -- Star-tinted stroke
-        Border = Color3.fromRGB(40, 54, 74),           -- Twilight border
-        Accent = Color3.fromRGB(247, 230, 185),        -- Cosmic champagne starlight gold
-        AccentHover = Color3.fromRGB(255, 243, 212),   -- Luminous starlight shine
-        AccentGlow = Color3.fromRGB(247, 230, 185),    -- Warm planetary glow
-        Text = Color3.fromRGB(250, 248, 244),          -- Celestial ivory
-        SubText = Color3.fromRGB(156, 178, 198),       -- Muted twilight blue-gray
-        Success = Color3.fromRGB(120, 215, 175),       -- Aurora mint
-        Warning = Color3.fromRGB(247, 205, 125),       -- Starburst amber
-        Danger = Color3.fromRGB(245, 100, 120),        -- Supernova rose
-        Sidebar = Color3.fromRGB(11, 15, 22),          -- Deep midnight sidebar
-        ToggleOff = Color3.fromRGB(36, 48, 66),        -- Muted cosmic toggle
-    },
-    ["Dark"] = {
-        Background = Color3.fromRGB(16, 17, 22),
-        CardBackground = Color3.fromRGB(24, 25, 33),
-        CardHover = Color3.fromRGB(30, 32, 42),
-        CardStroke = Color3.fromRGB(42, 44, 58),
-        Border = Color3.fromRGB(38, 40, 52),
-        Accent = Color3.fromRGB(75, 130, 255),
-        AccentHover = Color3.fromRGB(95, 145, 255),
-        AccentGlow = Color3.fromRGB(75, 130, 255),
-        Text = Color3.fromRGB(240, 242, 248),
-        SubText = Color3.fromRGB(150, 155, 175),
-        Success = Color3.fromRGB(46, 204, 113),
-        Warning = Color3.fromRGB(241, 196, 15),
-        Danger = Color3.fromRGB(231, 76, 60),
-        Sidebar = Color3.fromRGB(13, 14, 18),
-        ToggleOff = Color3.fromRGB(45, 48, 62),
-    },
-    ["Midnight"] = {
-        Background = Color3.fromRGB(10, 11, 15),
-        CardBackground = Color3.fromRGB(17, 18, 26),
-        CardHover = Color3.fromRGB(23, 25, 36),
-        CardStroke = Color3.fromRGB(32, 35, 50),
-        Border = Color3.fromRGB(28, 30, 44),
-        Accent = Color3.fromRGB(114, 90, 242),
-        AccentHover = Color3.fromRGB(135, 112, 255),
-        AccentGlow = Color3.fromRGB(114, 90, 242),
-        Text = Color3.fromRGB(245, 246, 250),
-        SubText = Color3.fromRGB(140, 145, 168),
-        Success = Color3.fromRGB(50, 215, 130),
-        Warning = Color3.fromRGB(255, 190, 30),
-        Danger = Color3.fromRGB(255, 75, 75),
-        Sidebar = Color3.fromRGB(7, 8, 12),
-        ToggleOff = Color3.fromRGB(38, 40, 56),
-    },
-    ["Amethyst"] = {
-        Background = Color3.fromRGB(18, 14, 26),
-        CardBackground = Color3.fromRGB(27, 21, 39),
-        CardHover = Color3.fromRGB(36, 28, 52),
-        CardStroke = Color3.fromRGB(52, 40, 75),
-        Border = Color3.fromRGB(46, 35, 66),
-        Accent = Color3.fromRGB(168, 85, 247),
-        AccentHover = Color3.fromRGB(192, 120, 255),
-        AccentGlow = Color3.fromRGB(168, 85, 247),
-        Text = Color3.fromRGB(248, 245, 255),
-        SubText = Color3.fromRGB(170, 155, 195),
-        Success = Color3.fromRGB(52, 211, 153),
-        Warning = Color3.fromRGB(251, 191, 36),
-        Danger = Color3.fromRGB(248, 113, 113),
-        Sidebar = Color3.fromRGB(13, 10, 20),
-        ToggleOff = Color3.fromRGB(50, 40, 68),
-    },
-    ["Emerald"] = {
-        Background = Color3.fromRGB(12, 19, 16),
-        CardBackground = Color3.fromRGB(18, 29, 24),
-        CardHover = Color3.fromRGB(24, 39, 32),
-        CardStroke = Color3.fromRGB(36, 58, 48),
-        Border = Color3.fromRGB(30, 50, 40),
-        Accent = Color3.fromRGB(16, 185, 129),
-        AccentHover = Color3.fromRGB(52, 211, 153),
-        AccentGlow = Color3.fromRGB(16, 185, 129),
-        Text = Color3.fromRGB(240, 253, 244),
-        SubText = Color3.fromRGB(140, 175, 155),
-        Success = Color3.fromRGB(16, 185, 129),
-        Warning = Color3.fromRGB(245, 158, 11),
-        Danger = Color3.fromRGB(239, 68, 68),
-        Sidebar = Color3.fromRGB(8, 14, 12),
-        ToggleOff = Color3.fromRGB(35, 52, 44),
-    },
-    ["Rose"] = {
-        Background = Color3.fromRGB(20, 13, 16),
-        CardBackground = Color3.fromRGB(31, 20, 25),
-        CardHover = Color3.fromRGB(42, 27, 34),
-        CardStroke = Color3.fromRGB(62, 40, 50),
-        Border = Color3.fromRGB(54, 34, 44),
-        Accent = Color3.fromRGB(244, 63, 94),
-        AccentHover = Color3.fromRGB(251, 113, 133),
-        AccentGlow = Color3.fromRGB(244, 63, 94),
-        Text = Color3.fromRGB(255, 241, 242),
-        SubText = Color3.fromRGB(185, 145, 155),
-        Success = Color3.fromRGB(34, 197, 94),
-        Warning = Color3.fromRGB(245, 158, 11),
-        Danger = Color3.fromRGB(244, 63, 94),
-        Sidebar = Color3.fromRGB(15, 9, 12),
-        ToggleOff = Color3.fromRGB(58, 38, 48),
-    },
-    ["Cyberpunk"] = {
-        Background = Color3.fromRGB(11, 12, 16),
-        CardBackground = Color3.fromRGB(19, 20, 28),
-        CardHover = Color3.fromRGB(26, 28, 38),
-        CardStroke = Color3.fromRGB(45, 48, 66),
-        Border = Color3.fromRGB(38, 42, 58),
-        Accent = Color3.fromRGB(0, 230, 200),
-        AccentHover = Color3.fromRGB(40, 255, 225),
-        AccentGlow = Color3.fromRGB(0, 230, 200),
-        Text = Color3.fromRGB(245, 250, 255),
-        SubText = Color3.fromRGB(135, 150, 175),
-        Success = Color3.fromRGB(0, 230, 200),
-        Warning = Color3.fromRGB(255, 215, 0),
-        Danger = Color3.fromRGB(255, 45, 85),
-        Sidebar = Color3.fromRGB(8, 9, 12),
-        ToggleOff = Color3.fromRGB(40, 44, 60),
-    }
+local Theme = {
+    Background = Color3.fromRGB(15, 20, 29),       -- Deep cosmic navy
+    CardBackground = Color3.fromRGB(24, 32, 45),   -- Starry slate container
+    CardHover = Color3.fromRGB(33, 44, 61),        -- Celestial luminous hover
+    CardStroke = Color3.fromRGB(48, 64, 88),       -- Star-tinted stroke
+    Border = Color3.fromRGB(40, 54, 74),           -- Twilight border
+    Accent = Color3.fromRGB(247, 230, 185),        -- Cosmic champagne starlight gold
+    AccentHover = Color3.fromRGB(255, 243, 212),   -- Luminous starlight shine
+    AccentGlow = Color3.fromRGB(247, 230, 185),    -- Warm planetary glow
+    Text = Color3.fromRGB(250, 248, 244),          -- Celestial ivory
+    SubText = Color3.fromRGB(156, 178, 198),       -- Muted twilight blue-gray
+    Success = Color3.fromRGB(120, 215, 175),       -- Aurora mint
+    Warning = Color3.fromRGB(247, 205, 125),       -- Starburst amber
+    Danger = Color3.fromRGB(245, 100, 120),        -- Supernova rose
+    Sidebar = Color3.fromRGB(11, 15, 22),          -- Deep midnight sidebar
+    ToggleOff = Color3.fromRGB(36, 48, 66),        -- Muted cosmic toggle
 }
 
 -- ==============================================================================
@@ -540,13 +376,11 @@ function IconEngine.ApplyDecal(imageLabel, rawQuery)
 end
 
 -- ==============================================================================
--- 5. CREATOR & THEMETAG REGISTRY ENGINE (Fluent Methodology)
+-- 5. CREATOR & GUI BUILDER ENGINE
 -- ==============================================================================
 local Creator = {
-    Registry = {},
     Signals = {},
-    ActiveTheme = Themes["Hoshi"],
-    ActiveThemeName = "Hoshi",
+    Theme = Theme,
 }
 
 function Creator.GetSafeGuiParent()
@@ -574,61 +408,16 @@ function Creator.Disconnect()
     Creator.Signals = {}
 end
 
-function Creator.GetThemeProperty(propKey)
-    if Creator.ActiveTheme and Creator.ActiveTheme[propKey] then
-        return Creator.ActiveTheme[propKey]
-    end
-    return Themes["Hoshi"][propKey]
-end
-
-function Creator.AddThemeObject(instance, themeTags)
-    Creator.Registry[instance] = themeTags
-    for prop, themeKey in pairs(themeTags) do
-        local val = Creator.GetThemeProperty(themeKey)
-        if val ~= nil then
-            pcall(function() instance[prop] = val end)
-        end
-    end
-    return instance
-end
-
-function Creator.UpdateTheme(newTheme, newThemeName)
-    if type(newTheme) == "string" then
-        newThemeName = newTheme
-        newTheme = Themes[newThemeName] or Themes["Hoshi"]
-    end
-    Creator.ActiveTheme = newTheme or Themes["Hoshi"]
-    Creator.ActiveThemeName = newThemeName or "Hoshi"
-
-    for inst, tags in pairs(Creator.Registry) do
-        if inst and inst.Parent then
-            for prop, themeKey in pairs(tags) do
-                local val = Creator.GetThemeProperty(themeKey)
-                if val ~= nil then
-                    pcall(function() inst[prop] = val end)
-                end
-            end
-        else
-            Creator.Registry[inst] = nil
-        end
-    end
-end
-
 function Creator.New(className, properties, children)
     local instance = Instance.new(className)
     properties = properties or {}
     children = children or {}
-    local themeTags = properties.ThemeTag
-    properties.ThemeTag = nil
 
     for prop, val in pairs(properties) do
         pcall(function() instance[prop] = val end)
     end
     for _, child in ipairs(children) do
         if typeof(child) == "Instance" then child.Parent = instance end
-    end
-    if themeTags and type(themeTags) == "table" then
-        Creator.AddThemeObject(instance, themeTags)
     end
     return instance
 end
@@ -640,17 +429,17 @@ function Creator.AddCorner(instance, radius)
     return corner
 end
 
-function Creator.AddStroke(instance, colorKeyOrColor, thickness, transparency)
+function Creator.AddStroke(instance, colorOrKey, thickness, transparency)
     local stroke = Instance.new("UIStroke")
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Thickness = thickness or 1
     stroke.Transparency = transparency or 0
-    if type(colorKeyOrColor) == "string" then
-        Creator.AddThemeObject(stroke, { Color = colorKeyOrColor })
-    elseif typeof(colorKeyOrColor) == "Color3" then
-        stroke.Color = colorKeyOrColor
+    if typeof(colorOrKey) == "Color3" then
+        stroke.Color = colorOrKey
+    elseif type(colorOrKey) == "string" and Theme[colorOrKey] then
+        stroke.Color = Theme[colorOrKey]
     else
-        stroke.Color = Creator.GetThemeProperty("Border")
+        stroke.Color = Theme.Border
     end
     stroke.Parent = instance
     return stroke
@@ -676,19 +465,6 @@ function Creator.Tween(instance, properties, duration, style, direction)
     local anim = TweenService:Create(instance, tweenInfo, properties)
     anim:Play()
     return anim
-end
-
-function Creator.SpringMotor(initialValue, instance, propertyName, frequency)
-    local motor = Flipper.SingleMotor.new(initialValue)
-    motor:onStep(function(val)
-        if instance and instance.Parent then
-            pcall(function() instance[propertyName] = val end)
-        end
-    end)
-    local setGoal = function(target)
-        motor:setGoal(Flipper.Spring.new(target, { frequency = frequency or 7 }))
-    end
-    return motor, setGoal
 end
 
 function Creator.MakeDraggable(dragBar, mainFrame)
@@ -838,7 +614,7 @@ function NotificationManager.Init(screenGui)
     return holder
 end
 
-function NotificationManager.Notify(holder, notifConfig, theme)
+function NotificationManager.Notify(holder, notifConfig)
     notifConfig = notifConfig or {}
     local title = notifConfig.Title or "Notification"
     local content = notifConfig.Content or ""
@@ -846,21 +622,20 @@ function NotificationManager.Notify(holder, notifConfig, theme)
     local duration = notifConfig.Duration or 3.5
     local rawIcon = notifConfig.Icon or "bell"
 
-    local typeColor = theme.Accent
-    if notifType == "Success" then typeColor = theme.Success
-    elseif notifType == "Warning" then typeColor = theme.Warning
-    elseif notifType == "Danger" then typeColor = theme.Danger end
+    local typeColor = Theme.Accent
+    if notifType == "Success" then typeColor = Theme.Success
+    elseif notifType == "Warning" then typeColor = Theme.Warning
+    elseif notifType == "Danger" then typeColor = Theme.Danger end
 
     local notifFrame = Creator.New("Frame", {
         Name = "Toast",
         Size = UDim2.new(1, 0, 0, 0),
-        BackgroundColor3 = theme.CardBackground,
+        BackgroundColor3 = Theme.CardBackground,
         ClipsDescendants = true,
-        Parent = holder,
-        ThemeTag = { BackgroundColor3 = "CardBackground" }
+        Parent = holder
     })
     Creator.AddCorner(notifFrame, 8)
-    Creator.AddStroke(notifFrame, "Border", 1)
+    Creator.AddStroke(notifFrame, Theme.Border, 1)
 
     Creator.New("Frame", {
         Name = "SideBar",
@@ -893,12 +668,11 @@ function NotificationManager.Notify(holder, notifConfig, theme)
         Position = UDim2.new(0, 36, 0, 12),
         BackgroundTransparency = 1,
         Text = title,
-        TextColor3 = theme.Text,
+        TextColor3 = Theme.Text,
         TextSize = 13,
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextTruncate = Enum.TextTruncate.AtEnd,
-        ThemeTag = { TextColor3 = "Text" },
         Parent = notifFrame
     })
 
@@ -908,13 +682,12 @@ function NotificationManager.Notify(holder, notifConfig, theme)
         Position = UDim2.new(0, 36, 0, 32),
         BackgroundTransparency = 1,
         Text = content,
-        TextColor3 = theme.SubText,
+        TextColor3 = Theme.SubText,
         TextSize = 11,
         Font = Enum.Font.GothamMedium,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextWrapped = true,
         AutomaticSize = Enum.AutomaticSize.Y,
-        ThemeTag = { TextColor3 = "SubText" },
         Parent = notifFrame
     })
 
@@ -942,11 +715,11 @@ function NotificationManager.Notify(holder, notifConfig, theme)
 end
 
 -- ==============================================================================
--- 8. DIALOG MODAL SYSTEM (Fluent Responsive Scale)
+-- 8. DIALOG MODAL SYSTEM
 -- ==============================================================================
 local DialogManager = {}
 
-function DialogManager.Open(screenGui, dialogConfig, theme)
+function DialogManager.Open(screenGui, dialogConfig)
     dialogConfig = dialogConfig or {}
     local title = dialogConfig.Title or "Dialog"
     local content = dialogConfig.Content or ""
@@ -970,13 +743,12 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         Size = UDim2.new(0, dialogWidth, 0, 175),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = theme.CardBackground,
+        BackgroundColor3 = Theme.CardBackground,
         ZIndex = 101,
-        ThemeTag = { BackgroundColor3 = "CardBackground" },
         Parent = modalOverlay
     })
     Creator.AddCorner(dialogBox, 10)
-    Creator.AddStroke(dialogBox, "Border", 1)
+    Creator.AddStroke(dialogBox, Theme.Border, 1)
 
     local dScale = Creator.New("UIScale", { Scale = 0.85, Parent = dialogBox })
 
@@ -986,12 +758,11 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         Position = UDim2.new(0, 16, 0, 16),
         BackgroundTransparency = 1,
         Text = title,
-        TextColor3 = theme.Text,
+        TextColor3 = Theme.Text,
         TextSize = 15,
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 102,
-        ThemeTag = { TextColor3 = "Text" },
         Parent = dialogBox
     })
 
@@ -1001,13 +772,12 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         Position = UDim2.new(0, 16, 0, 44),
         BackgroundTransparency = 1,
         Text = content,
-        TextColor3 = theme.SubText,
+        TextColor3 = Theme.SubText,
         TextSize = 12,
         Font = Enum.Font.GothamMedium,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextWrapped = true,
         ZIndex = 102,
-        ThemeTag = { TextColor3 = "SubText" },
         Parent = dialogBox
     })
 
@@ -1042,24 +812,23 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
 
     for idx, btnData in ipairs(buttons) do
         local bVariant = btnData.Variant or "Secondary"
-        local bBgKey = "Background"
-        local bTextKey = "Text"
-        if bVariant == "Primary" then bBgKey = "Accent" bTextKey = "Background"
-        elseif bVariant == "Danger" then bBgKey = "Danger" bTextKey = "Text" end
+        local bBg = Theme.CardBackground
+        local bText = Theme.Text
+        if bVariant == "Primary" then bBg = Theme.Accent bText = Theme.Background
+        elseif bVariant == "Danger" then bBg = Theme.Danger bText = Theme.Text end
 
         local dBtn = Creator.New("TextButton", {
             Name = "Btn_" .. idx .. "_" .. (btnData.Text or "Action"),
             Size = UDim2.new(btnWidthScale, -btnOffsetGap, 1, 0),
-            BackgroundColor3 = Creator.GetThemeProperty(bBgKey),
+            BackgroundColor3 = bBg,
             AutoButtonColor = false,
             Text = btnData.Text or "Action",
-            TextColor3 = Creator.GetThemeProperty(bTextKey),
+            TextColor3 = bText,
             TextSize = 12,
             Font = Enum.Font.GothamBold,
             TextTruncate = Enum.TextTruncate.AtEnd,
             LayoutOrder = idx,
             ZIndex = 103,
-            ThemeTag = { BackgroundColor3 = bBgKey, TextColor3 = bTextKey },
             Parent = btnContainer
         })
         Creator.AddCorner(dBtn, 6)
@@ -1074,22 +843,20 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
 end
 
 -- ==============================================================================
--- 9. MAIN WINDOW COMPONENT FACTORY (Fluent Standard Architecture)
+-- 9. MAIN WINDOW COMPONENT FACTORY
 -- ==============================================================================
 local HoshiUI = {
-    Version = "2.2.0",
+    Version = "2.3.0",
     Windows = {},
     Icons = IconEngine,
-    Themes = Themes,
+    Theme = Theme,
 }
 
 function HoshiUI:CreateWindow(config)
     config = config or {}
     local windowTitle = config.Title or "Hoshi Hub"
     local windowSubTitle = config.SubTitle or "v2.0"
-    local themeName = config.Theme or "Hoshi"
     local toggleKey = config.ToggleKey or Enum.KeyCode.RightControl
-    local hasFloating = (config.FloatingButton ~= false)
     local configFolder = config.Folder or "HoshiHub"
     local configFile = config.ConfigFile or "Config.json"
     local autoSave = (config.AutoSave ~= false)
@@ -1104,10 +871,6 @@ function HoshiUI:CreateWindow(config)
     local safeParent = Creator.GetSafeGuiParent()
     local existingGui = safeParent:FindFirstChild("HoshiUI_Root")
     if existingGui then pcall(existingGui.Destroy, existingGui) end
-
-    local theme = Themes[themeName] or Themes["Hoshi"] or Themes["Dark"]
-    Creator.ActiveTheme = theme
-    Creator.ActiveThemeName = themeName
 
     local viewport = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
     local defaultW = math.min(config.Size and config.Size.X.Offset or 680, viewport.X - 24)
@@ -1130,13 +893,12 @@ function HoshiUI:CreateWindow(config)
         Size = windowSize,
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = theme.Background,
+        BackgroundColor3 = Theme.Background,
         ClipsDescendants = false,
-        ThemeTag = { BackgroundColor3 = "Background" },
         Parent = screenGui
     })
     Creator.AddCorner(mainFrame, 12)
-    local mainStroke = Creator.AddStroke(mainFrame, "Border", 1)
+    local mainStroke = Creator.AddStroke(mainFrame, Theme.Border, 1)
 
     local uiScale = Creator.New("UIScale", { Scale = initialScale, Parent = mainFrame })
 
@@ -1162,16 +924,15 @@ function HoshiUI:CreateWindow(config)
     })
 
     local rawHeaderIcon = config.Icon or "95445676600352"
-    local isHeaderCustomAsset = type(rawHeaderIcon) == "number" or tonumber(rawHeaderIcon) ~= nil or tostring(rawHeaderIcon):find("^rbxthumb://") or tostring(rawHeaderIcon):find("^rbxassetid://") or tostring(rawHeaderIcon):find("%d%d%d%d%d%d")
+    local isHeaderCustomAsset = type(rawHeaderIcon) == "number" or tonumber(rawHeaderIcon) ~= nil or tostring(rawHeaderIcon):find("^rbxthumb://") or tostring(rawHeaderIcon):find("%d%d%d%d%d%d")
 
     local headImg = Creator.New("ImageLabel", {
         Name = "HeaderIcon",
         Size = UDim2.new(0, 24, 0, 24),
         Position = UDim2.new(0, 14, 0.5, -12),
         BackgroundTransparency = 1,
-        ImageColor3 = isHeaderCustomAsset and Color3.fromRGB(255, 255, 255) or theme.Accent,
+        ImageColor3 = isHeaderCustomAsset and Color3.fromRGB(255, 255, 255) or Theme.Accent,
         ScaleType = Enum.ScaleType.Fit,
-        ThemeTag = isHeaderCustomAsset and nil or { ImageColor3 = "Accent" },
         Parent = topBar
     })
     if isHeaderCustomAsset then
@@ -1195,11 +956,10 @@ function HoshiUI:CreateWindow(config)
         Position = UDim2.new(0, 0, 0, 6),
         BackgroundTransparency = 1,
         Text = windowTitle,
-        TextColor3 = theme.Text,
+        TextColor3 = Theme.Text,
         TextSize = 14,
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
-        ThemeTag = { TextColor3 = "Text" },
         Parent = titleContainer
     })
 
@@ -1209,11 +969,10 @@ function HoshiUI:CreateWindow(config)
         Position = UDim2.new(0, 0, 0, 26),
         BackgroundTransparency = 1,
         Text = windowSubTitle,
-        TextColor3 = theme.SubText,
+        TextColor3 = Theme.SubText,
         TextSize = 10,
         Font = Enum.Font.GothamMedium,
         TextXAlignment = Enum.TextXAlignment.Left,
-        ThemeTag = { TextColor3 = "SubText" },
         Parent = titleContainer
     })
 
@@ -1237,14 +996,13 @@ function HoshiUI:CreateWindow(config)
         local btn = Creator.New("ImageButton", {
             Name = name,
             Size = UDim2.new(0, 28, 0, 28),
-            BackgroundColor3 = theme.CardBackground,
+            BackgroundColor3 = Theme.CardBackground,
             AutoButtonColor = false,
             LayoutOrder = layoutOrder or 1,
-            ThemeTag = { BackgroundColor3 = "CardBackground" },
             Parent = actionsContainer
         })
         Creator.AddCorner(btn, 6)
-        Creator.AddStroke(btn, "Border", 1)
+        Creator.AddStroke(btn, Theme.Border, 1)
 
         local ico = Creator.New("ImageLabel", {
             Name = "Icon",
@@ -1252,18 +1010,17 @@ function HoshiUI:CreateWindow(config)
             Position = UDim2.new(0.5, -7, 0.5, -7),
             BackgroundTransparency = 1,
             Image = IconEngine.GetIcon(iconId) or iconId,
-            ImageColor3 = theme.SubText,
-            ThemeTag = { ImageColor3 = "SubText" },
+            ImageColor3 = Theme.SubText,
             Parent = btn
         })
 
         btn.MouseEnter:Connect(function()
-            Creator.Tween(btn, { BackgroundColor3 = Creator.GetThemeProperty("CardHover") }, 0.15)
-            Creator.Tween(ico, { ImageColor3 = Creator.GetThemeProperty("Text") }, 0.15)
+            Creator.Tween(btn, { BackgroundColor3 = Theme.CardHover }, 0.15)
+            Creator.Tween(ico, { ImageColor3 = Theme.Text }, 0.15)
         end)
         btn.MouseLeave:Connect(function()
-            Creator.Tween(btn, { BackgroundColor3 = Creator.GetThemeProperty("CardBackground") }, 0.15)
-            Creator.Tween(ico, { ImageColor3 = Creator.GetThemeProperty("SubText") }, 0.15)
+            Creator.Tween(btn, { BackgroundColor3 = Theme.CardBackground }, 0.15)
+            Creator.Tween(ico, { ImageColor3 = Theme.SubText }, 0.15)
         end)
         btn.MouseButton1Click:Connect(onClick)
         return btn
@@ -1316,20 +1073,18 @@ function HoshiUI:CreateWindow(config)
     local sidebar = Creator.New("Frame", {
         Name = "Sidebar",
         Size = UDim2.new(0, 175, 1, 0),
-        BackgroundColor3 = theme.Sidebar,
-        ThemeTag = { BackgroundColor3 = "Sidebar" },
+        BackgroundColor3 = Theme.Sidebar,
         Parent = body
     })
     Creator.AddCorner(sidebar, 8)
-    Creator.AddStroke(sidebar, "Border", 1)
+    Creator.AddStroke(sidebar, Theme.Border, 1)
 
     -- Fluent Sliding Tab Indicator Pill
     local tabIndicator = Creator.New("Frame", {
         Name = "TabIndicator",
         Size = UDim2.new(0, 3, 0, 18),
         Position = UDim2.new(0, 4, 0, 8),
-        BackgroundColor3 = theme.Accent,
-        ThemeTag = { BackgroundColor3 = "Accent" },
+        BackgroundColor3 = Theme.Accent,
         Parent = sidebar
     })
     Creator.AddCorner(tabIndicator, 2)
@@ -1349,14 +1104,13 @@ function HoshiUI:CreateWindow(config)
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
         ScrollBarThickness = 2,
-        ScrollBarImageColor3 = theme.Border,
+        ScrollBarImageColor3 = Theme.Border,
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
-        ThemeTag = { ScrollBarImageColor3 = "Border" },
         Parent = sidebar
     })
     Creator.AddPadding(tabListScroll, 8, 8, 8, 8)
-    local tabLayout = Creator.New("UIListLayout", {
+    Creator.New("UIListLayout", {
         SortOrder = Enum.SortOrder.LayoutOrder,
         Padding = UDim.new(0, 4),
         Parent = tabListScroll
@@ -1370,7 +1124,7 @@ function HoshiUI:CreateWindow(config)
         Parent = body
     })
 
-    -- Interactive Corner Resize Handle (Flipper Spring GroupMotor)
+    -- Interactive Corner Resize Handle
     if isResizable then
         local resizeHandle = Creator.New("ImageButton", {
             Name = "ResizeHandle",
@@ -1388,10 +1142,9 @@ function HoshiUI:CreateWindow(config)
             Position = UDim2.new(1, -12, 1, -12),
             BackgroundTransparency = 1,
             Image = "rbxassetid://10709791624",
-            ImageColor3 = theme.SubText,
+            ImageColor3 = Theme.SubText,
             ImageTransparency = 0.4,
             Rotation = 45,
-            ThemeTag = { ImageColor3 = "SubText" },
             Parent = resizeHandle
         })
 
@@ -1432,106 +1185,101 @@ function HoshiUI:CreateWindow(config)
         end)
     end
 
-    -- Floating Action Toggle Button
-    local floatingBtn = nil
-    if hasFloating then
-        local rawFloatIcon = config.FloatingIcon or config.Icon or "95445676600352"
-        local isFloatCustomAsset = type(rawFloatIcon) == "number" or tonumber(rawFloatIcon) ~= nil or tostring(rawFloatIcon):find("^rbxthumb://") or tostring(rawFloatIcon):find("^rbxassetid://") or tostring(rawFloatIcon):find("%d%d%d%d%d%d")
+    -- Permanent Draggable Floating Action Toggle Button
+    local rawFloatIcon = config.FloatingIcon or config.Icon or "95445676600352"
+    local isFloatCustomAsset = type(rawFloatIcon) == "number" or tonumber(rawFloatIcon) ~= nil or tostring(rawFloatIcon):find("^rbxthumb://") or tostring(rawFloatIcon):find("%d%d%d%d%d%d")
 
-        floatingBtn = Creator.New("ImageButton", {
-            Name = "FloatingToggle",
-            Size = UDim2.new(0, 48, 0, 48),
-            Position = UDim2.new(0, 24, 0.5, -24),
-            BackgroundColor3 = theme.Background,
-            AutoButtonColor = false,
-            ZIndex = 50,
-            ThemeTag = { BackgroundColor3 = "Background" },
-            Parent = screenGui
-        })
-        Creator.AddCorner(floatingBtn, 12)
-        local floatStroke = Creator.AddStroke(floatingBtn, "Accent", 1.5)
-        local floatScale = Creator.New("UIScale", { Scale = 1.0, Parent = floatingBtn })
+    local floatingBtn = Creator.New("ImageButton", {
+        Name = "FloatingToggle",
+        Size = UDim2.new(0, 48, 0, 48),
+        Position = UDim2.new(0, 24, 0.5, -24),
+        BackgroundColor3 = Theme.Background,
+        AutoButtonColor = false,
+        ZIndex = 50,
+        Parent = screenGui
+    })
+    Creator.AddCorner(floatingBtn, 12)
+    local floatStroke = Creator.AddStroke(floatingBtn, Theme.Accent, 1.5)
+    local floatScale = Creator.New("UIScale", { Scale = 1.0, Parent = floatingBtn })
 
-        Creator.New("ImageLabel", {
-            Name = "Shadow",
-            Size = UDim2.new(1, 16, 1, 16),
-            Position = UDim2.new(0, -8, 0, -8),
-            BackgroundTransparency = 1,
-            Image = "rbxassetid://6015897843",
-            ImageColor3 = Color3.fromRGB(0, 0, 0),
-            ImageTransparency = 0.5,
-            SliceCenter = Rect.new(49, 49, 450, 450),
-            ScaleType = Enum.ScaleType.Slice,
-            ZIndex = 49,
-            Parent = floatingBtn
-        })
+    Creator.New("ImageLabel", {
+        Name = "Shadow",
+        Size = UDim2.new(1, 16, 1, 16),
+        Position = UDim2.new(0, -8, 0, -8),
+        BackgroundTransparency = 1,
+        Image = "rbxassetid://6015897843",
+        ImageColor3 = Color3.fromRGB(0, 0, 0),
+        ImageTransparency = 0.5,
+        SliceCenter = Rect.new(49, 49, 450, 450),
+        ScaleType = Enum.ScaleType.Slice,
+        ZIndex = 49,
+        Parent = floatingBtn
+    })
 
-        local floatImg = Creator.New("ImageLabel", {
-            Name = "Icon",
-            Size = isFloatCustomAsset and UDim2.new(1, -4, 1, -4) or UDim2.new(0, 22, 0, 22),
-            Position = isFloatCustomAsset and UDim2.new(0, 2, 0, 2) or UDim2.new(0.5, -11, 0.5, -11),
-            BackgroundTransparency = 1,
-            ImageColor3 = isFloatCustomAsset and Color3.fromRGB(255, 255, 255) or theme.Accent,
-            ScaleType = Enum.ScaleType.Fit,
-            ZIndex = 51,
-            ThemeTag = isFloatCustomAsset and nil or { ImageColor3 = "Accent" },
-            Parent = floatingBtn
-        })
-        if isFloatCustomAsset then
-            Creator.AddCorner(floatImg, 10)
-            IconEngine.ApplyDecal(floatImg, rawFloatIcon)
-        else
-            floatImg.Image = IconEngine.GetIcon(rawFloatIcon)
-        end
-
-        floatingBtn.MouseEnter:Connect(function()
-            Creator.Tween(floatScale, { Scale = 1.08 }, 0.15, Enum.EasingStyle.Quad)
-            Creator.Tween(floatStroke, { Color = Creator.GetThemeProperty("AccentHover"), Thickness = 2 }, 0.15)
-        end)
-        floatingBtn.MouseLeave:Connect(function()
-            Creator.Tween(floatScale, { Scale = 1.0 }, 0.15, Enum.EasingStyle.Quad)
-            Creator.Tween(floatStroke, { Color = Creator.GetThemeProperty("Accent"), Thickness = 1.5 }, 0.15)
-        end)
-
-        -- Smooth Dragging System with Click Differentiation
-        local isDragging = false
-        local dragStartMouse = Vector2.new()
-        local dragStartAbsolute = Vector2.new()
-        local hasMoved = false
-
-        Creator.AddSignal(floatingBtn.InputBegan, function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isDragging = true
-                hasMoved = false
-                dragStartMouse = Vector2.new(input.Position.X, input.Position.Y)
-                dragStartAbsolute = floatingBtn.AbsolutePosition
-
-                local endConn
-                endConn = UserInputService.InputEnded:Connect(function(endInput)
-                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
-                        isDragging = false
-                        if endConn then endConn:Disconnect() end
-                        if not hasMoved then
-                            toggleWindow()
-                        end
-                    end
-                end)
-            end
-        end)
-
-        Creator.AddSignal(UserInputService.InputChanged, function(input)
-            if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartMouse
-                if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then
-                    hasMoved = true
-                end
-                local vp = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
-                local targetX = math.clamp(dragStartAbsolute.X + delta.X, 4, vp.X - 52)
-                local targetY = math.clamp(dragStartAbsolute.Y + delta.Y, 4, vp.Y - 52)
-                floatingBtn.Position = UDim2.fromOffset(targetX, targetY)
-            end
-        end)
+    local floatImg = Creator.New("ImageLabel", {
+        Name = "Icon",
+        Size = isFloatCustomAsset and UDim2.new(1, -4, 1, -4) or UDim2.new(0, 22, 0, 22),
+        Position = isFloatCustomAsset and UDim2.new(0, 2, 0, 2) or UDim2.new(0.5, -11, 0.5, -11),
+        BackgroundTransparency = 1,
+        ImageColor3 = isFloatCustomAsset and Color3.fromRGB(255, 255, 255) or Theme.Accent,
+        ScaleType = Enum.ScaleType.Fit,
+        ZIndex = 51,
+        Parent = floatingBtn
+    })
+    if isFloatCustomAsset then
+        Creator.AddCorner(floatImg, 10)
+        IconEngine.ApplyDecal(floatImg, rawFloatIcon)
+    else
+        floatImg.Image = IconEngine.GetIcon(rawFloatIcon)
     end
+
+    floatingBtn.MouseEnter:Connect(function()
+        Creator.Tween(floatScale, { Scale = 1.08 }, 0.15, Enum.EasingStyle.Quad)
+        Creator.Tween(floatStroke, { Color = Theme.AccentHover, Thickness = 2 }, 0.15)
+    end)
+    floatingBtn.MouseLeave:Connect(function()
+        Creator.Tween(floatScale, { Scale = 1.0 }, 0.15, Enum.EasingStyle.Quad)
+        Creator.Tween(floatStroke, { Color = Theme.Accent, Thickness = 1.5 }, 0.15)
+    end)
+
+    -- Smooth Dragging with Absolute Position Calculation
+    local isDragging = false
+    local dragStartMouse = Vector2.new()
+    local dragStartAbsolute = Vector2.new()
+    local hasMoved = false
+
+    Creator.AddSignal(floatingBtn.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+            hasMoved = false
+            dragStartMouse = Vector2.new(input.Position.X, input.Position.Y)
+            dragStartAbsolute = floatingBtn.AbsolutePosition
+
+            local endConn
+            endConn = UserInputService.InputEnded:Connect(function(endInput)
+                if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                    isDragging = false
+                    if endConn then endConn:Disconnect() end
+                    if not hasMoved then
+                        toggleWindow()
+                    end
+                end
+            end)
+        end
+    end)
+
+    Creator.AddSignal(UserInputService.InputChanged, function(input)
+        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartMouse
+            if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then
+                hasMoved = true
+            end
+            local vp = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
+            local targetX = math.clamp(dragStartAbsolute.X + delta.X, 4, vp.X - 52)
+            local targetY = math.clamp(dragStartAbsolute.Y + delta.Y, 4, vp.Y - 52)
+            floatingBtn.Position = UDim2.fromOffset(targetX, targetY)
+        end
+    end)
 
     Creator.AddSignal(UserInputService.InputBegan, function(input, gpe)
         if gpe then return end
@@ -1545,9 +1293,7 @@ function HoshiUI:CreateWindow(config)
         Tabs = {},
         ActiveTab = nil,
         ConfigManager = ConfigManager,
-        Themes = Themes,
-        ActiveTheme = theme,
-        ActiveThemeName = themeName,
+        Theme = Theme,
     }
 
     function Window:SetScale(scaleValue)
@@ -1557,20 +1303,12 @@ function HoshiUI:CreateWindow(config)
 
     function Window:GetScale() return uiScale.Scale end
 
-    function Window:SetTheme(targetTheme)
-        Creator.UpdateTheme(targetTheme)
-    end
-
-    function Window:SetFloatingVisible(visible)
-        if floatingBtn then floatingBtn.Visible = (visible ~= false) end
-    end
-
     function Window:Notify(notifConfig)
-        NotificationManager.Notify(notifHolder, notifConfig, Creator.ActiveTheme)
+        NotificationManager.Notify(notifHolder, notifConfig)
     end
 
     function Window:Dialog(dialogConfig)
-        DialogManager.Open(screenGui, dialogConfig, Creator.ActiveTheme)
+        DialogManager.Open(screenGui, dialogConfig)
     end
 
     function Window:Destroy()
@@ -1581,7 +1319,7 @@ function HoshiUI:CreateWindow(config)
     if getgenv then getgenv().HoshiHub_ActiveWindow = Window end
 
     -- ==============================================================================
-    -- TAB FACTORY (Fluent Sliding Indicator & Animated Page Container)
+    -- TAB FACTORY
     -- ==============================================================================
     function Window:CreateTab(tabConfig)
         tabConfig = tabConfig or {}
@@ -1591,7 +1329,7 @@ function HoshiUI:CreateWindow(config)
         local tabBtn = Creator.New("TextButton", {
             Name = "TabBtn_" .. tabTitle,
             Size = UDim2.new(1, 0, 0, 34),
-            BackgroundColor3 = theme.Sidebar,
+            BackgroundColor3 = Theme.Sidebar,
             BackgroundTransparency = 1,
             AutoButtonColor = false,
             Text = "",
@@ -1605,8 +1343,7 @@ function HoshiUI:CreateWindow(config)
             Position = UDim2.new(0, 12, 0.5, -8),
             BackgroundTransparency = 1,
             Image = IconEngine.GetIcon(tabIconQuery),
-            ImageColor3 = theme.SubText,
-            ThemeTag = { ImageColor3 = "SubText" },
+            ImageColor3 = Theme.SubText,
             Parent = tabBtn
         })
 
@@ -1616,11 +1353,10 @@ function HoshiUI:CreateWindow(config)
             Position = UDim2.new(0, 36, 0, 0),
             BackgroundTransparency = 1,
             Text = tabTitle,
-            TextColor3 = theme.SubText,
+            TextColor3 = Theme.SubText,
             TextSize = 13,
             Font = Enum.Font.GothamMedium,
             TextXAlignment = Enum.TextXAlignment.Left,
-            ThemeTag = { TextColor3 = "SubText" },
             Parent = tabBtn
         })
 
@@ -1629,11 +1365,10 @@ function HoshiUI:CreateWindow(config)
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
             ScrollBarThickness = 3,
-            ScrollBarImageColor3 = theme.Border,
+            ScrollBarImageColor3 = Theme.Border,
             CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             Visible = false,
-            ThemeTag = { ScrollBarImageColor3 = "Border" },
             Parent = contentArea
         })
         Creator.AddPadding(pageScroll, 12, 16, 10, 14)
@@ -1654,21 +1389,20 @@ function HoshiUI:CreateWindow(config)
             for _, otherTab in ipairs(Window.Tabs) do
                 otherTab.Page.Visible = false
                 Creator.Tween(otherTab.Button, { BackgroundTransparency = 1 }, 0.15)
-                Creator.Tween(otherTab.Button.Icon, { ImageColor3 = Creator.GetThemeProperty("SubText") }, 0.15)
-                Creator.Tween(otherTab.Button.Title, { TextColor3 = Creator.GetThemeProperty("SubText") }, 0.15)
+                Creator.Tween(otherTab.Button.Icon, { ImageColor3 = Theme.SubText }, 0.15)
+                Creator.Tween(otherTab.Button.Title, { TextColor3 = Theme.SubText }, 0.15)
             end
 
             Window.ActiveTab = Tab
             pageScroll.Visible = true
 
-            -- Fluent Spring Sliding Tab Indicator
             local targetY = tabBtn.Position.Y.Offset + tabBtn.AbsolutePosition.Y - tabListScroll.AbsolutePosition.Y + 8
             selectorPosMotor:setGoal(Flipper.Spring.new(targetY, { frequency = 8 }))
             selectorSizeMotor:setGoal(Flipper.Spring.new(18, { frequency = 8 }))
 
             Creator.Tween(tabBtn, { BackgroundTransparency = 0.85 }, 0.15)
-            Creator.Tween(tabIconLabel, { ImageColor3 = Creator.GetThemeProperty("Accent") }, 0.15)
-            Creator.Tween(tabTextLabel, { TextColor3 = Creator.GetThemeProperty("Text") }, 0.15)
+            Creator.Tween(tabIconLabel, { ImageColor3 = Theme.Accent }, 0.15)
+            Creator.Tween(tabTextLabel, { TextColor3 = Theme.Text }, 0.15)
         end
 
         tabBtn.MouseButton1Click:Connect(selectThisTab)
@@ -1679,7 +1413,7 @@ function HoshiUI:CreateWindow(config)
         end
 
         -- ==============================================================================
-        -- UNIFIED ELEMENT FACTORIES (Buttons, Toggles, Sliders, Dropdowns, etc.)
+        -- UNIFIED ELEMENT FACTORIES
         -- ==============================================================================
 
         function Tab:CreateSection(title, desc)
@@ -1694,11 +1428,10 @@ function HoshiUI:CreateWindow(config)
                 Size = UDim2.new(1, 0, 0, 16),
                 BackgroundTransparency = 1,
                 Text = title:upper(),
-                TextColor3 = Creator.GetThemeProperty("Accent"),
+                TextColor3 = Theme.Accent,
                 TextSize = 11,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Accent" },
                 Parent = sectionHolder
             })
             if desc then
@@ -1708,11 +1441,10 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, 0, 0, 16),
                     BackgroundTransparency = 1,
                     Text = desc,
-                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextColor3 = Theme.SubText,
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    ThemeTag = { TextColor3 = "SubText" },
                     Parent = sectionHolder
                 })
             end
@@ -1723,8 +1455,7 @@ function HoshiUI:CreateWindow(config)
             local divider = Creator.New("Frame", {
                 Name = "Divider",
                 Size = UDim2.new(1, 0, 0, 1),
-                BackgroundColor3 = Creator.GetThemeProperty("Border"),
-                ThemeTag = { BackgroundColor3 = "Border" },
+                BackgroundColor3 = Theme.Border,
                 Parent = pageScroll
             })
             return divider
@@ -1740,12 +1471,11 @@ function HoshiUI:CreateWindow(config)
                 Name = "Paragraph_" .. pTitle,
                 Size = UDim2.new(1, 0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
-                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
-                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                BackgroundColor3 = Theme.CardBackground,
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
-            Creator.AddStroke(card, "Border", 1)
+            Creator.AddStroke(card, Theme.Border, 1)
             Creator.AddPadding(card, 10, 10, 12, 12)
 
             local headerOffset = 0
@@ -1757,8 +1487,7 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, 0, 0, 0),
                     BackgroundTransparency = 1,
                     Image = pIcon,
-                    ImageColor3 = Creator.GetThemeProperty("Accent"),
-                    ThemeTag = { ImageColor3 = "Accent" },
+                    ImageColor3 = Theme.Accent,
                     Parent = card
                 })
             end
@@ -1769,11 +1498,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, headerOffset, 0, 0),
                 BackgroundTransparency = 1,
                 Text = pTitle,
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Text" },
                 Parent = card
             })
 
@@ -1783,13 +1511,12 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, 0, 0, 20),
                 BackgroundTransparency = 1,
                 Text = pContent,
-                TextColor3 = Creator.GetThemeProperty("SubText"),
+                TextColor3 = Theme.SubText,
                 TextSize = 11,
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextWrapped = true,
                 AutomaticSize = Enum.AutomaticSize.Y,
-                ThemeTag = { TextColor3 = "SubText" },
                 Parent = card
             })
             return card
@@ -1805,14 +1532,13 @@ function HoshiUI:CreateWindow(config)
             local card = Creator.New("TextButton", {
                 Name = "Button_" .. title,
                 Size = UDim2.new(1, 0, 0, desc and 48 or 38),
-                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                BackgroundColor3 = Theme.CardBackground,
                 AutoButtonColor = false,
                 Text = "",
-                ThemeTag = { BackgroundColor3 = "CardBackground" },
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
-            local stroke = Creator.AddStroke(card, "Border", 1)
+            local stroke = Creator.AddStroke(card, Theme.Border, 1)
 
             local offsetLeft = 12
             if icon then
@@ -1822,8 +1548,7 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, 12, 0.5, -9),
                     BackgroundTransparency = 1,
                     Image = icon,
-                    ImageColor3 = Creator.GetThemeProperty("Accent"),
-                    ThemeTag = { ImageColor3 = "Accent" },
+                    ImageColor3 = Theme.Accent,
                     Parent = card
                 })
                 offsetLeft = 36
@@ -1835,11 +1560,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, offsetLeft, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
                 Text = title,
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Text" },
                 Parent = card
             })
 
@@ -1850,11 +1574,10 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, offsetLeft, 0, 26),
                     BackgroundTransparency = 1,
                     Text = desc,
-                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextColor3 = Theme.SubText,
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    ThemeTag = { TextColor3 = "SubText" },
                     Parent = card
                 })
             end
@@ -1865,18 +1588,17 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(1, -22, 0.5, -7),
                 BackgroundTransparency = 1,
                 Image = IconEngine.GetIcon("chevron-right"),
-                ImageColor3 = Creator.GetThemeProperty("SubText"),
-                ThemeTag = { ImageColor3 = "SubText" },
+                ImageColor3 = Theme.SubText,
                 Parent = card
             })
 
             card.MouseEnter:Connect(function()
-                Creator.Tween(card, { BackgroundColor3 = Creator.GetThemeProperty("CardHover") }, 0.15)
-                Creator.Tween(stroke, { Color = Creator.GetThemeProperty("Accent") }, 0.15)
+                Creator.Tween(card, { BackgroundColor3 = Theme.CardHover }, 0.15)
+                Creator.Tween(stroke, { Color = Theme.Accent }, 0.15)
             end)
             card.MouseLeave:Connect(function()
-                Creator.Tween(card, { BackgroundColor3 = Creator.GetThemeProperty("CardBackground") }, 0.15)
-                Creator.Tween(stroke, { Color = Creator.GetThemeProperty("Border") }, 0.15)
+                Creator.Tween(card, { BackgroundColor3 = Theme.CardBackground }, 0.15)
+                Creator.Tween(stroke, { Color = Theme.Border }, 0.15)
             end)
             card.MouseButton1Click:Connect(function()
                 pcall(callback)
@@ -1902,14 +1624,13 @@ function HoshiUI:CreateWindow(config)
             local card = Creator.New("TextButton", {
                 Name = "Toggle_" .. title,
                 Size = UDim2.new(1, 0, 0, desc and 48 or 38),
-                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                BackgroundColor3 = Theme.CardBackground,
                 AutoButtonColor = false,
                 Text = "",
-                ThemeTag = { BackgroundColor3 = "CardBackground" },
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
-            local stroke = Creator.AddStroke(card, "Border", 1)
+            local stroke = Creator.AddStroke(card, Theme.Border, 1)
 
             Creator.New("TextLabel", {
                 Name = "Title",
@@ -1917,11 +1638,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, 12, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
                 Text = title,
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Text" },
                 Parent = card
             })
 
@@ -1932,21 +1652,19 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, 12, 0, 26),
                     BackgroundTransparency = 1,
                     Text = desc,
-                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextColor3 = Theme.SubText,
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    ThemeTag = { TextColor3 = "SubText" },
                     Parent = card
                 })
             end
 
-            -- Switch Track Pill
             local track = Creator.New("Frame", {
                 Name = "Track",
                 Size = UDim2.new(0, 40, 0, 22),
                 Position = UDim2.new(1, -52, 0.5, -11),
-                BackgroundColor3 = state and Creator.GetThemeProperty("Accent") or Creator.GetThemeProperty("ToggleOff"),
+                BackgroundColor3 = state and Theme.Accent or Theme.ToggleOff,
                 Parent = card
             })
             Creator.AddCorner(track, 11)
@@ -1955,7 +1673,7 @@ function HoshiUI:CreateWindow(config)
                 Name = "Thumb",
                 Size = UDim2.new(0, 16, 0, 16),
                 Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8),
-                BackgroundColor3 = state and Creator.GetThemeProperty("Background") or Color3.fromRGB(220, 220, 220),
+                BackgroundColor3 = state and Theme.Background or Color3.fromRGB(220, 220, 220),
                 Parent = track
             })
             Creator.AddCorner(thumb, 8)
@@ -1972,10 +1690,10 @@ function HoshiUI:CreateWindow(config)
 
                 thumbMotor:setGoal(Flipper.Spring.new(state and 1 or 0, { frequency = 8 }))
                 Creator.Tween(track, {
-                    BackgroundColor3 = state and Creator.GetThemeProperty("Accent") or Creator.GetThemeProperty("ToggleOff")
+                    BackgroundColor3 = state and Theme.Accent or Theme.ToggleOff
                 }, 0.18)
                 Creator.Tween(thumb, {
-                    BackgroundColor3 = state and Creator.GetThemeProperty("Background") or Color3.fromRGB(220, 220, 220)
+                    BackgroundColor3 = state and Theme.Background or Color3.fromRGB(220, 220, 220)
                 }, 0.18)
 
                 if not skipCallback then pcall(callback, state) end
@@ -1986,10 +1704,10 @@ function HoshiUI:CreateWindow(config)
             end)
 
             card.MouseEnter:Connect(function()
-                Creator.Tween(card, { BackgroundColor3 = Creator.GetThemeProperty("CardHover") }, 0.15)
+                Creator.Tween(card, { BackgroundColor3 = Theme.CardHover }, 0.15)
             end)
             card.MouseLeave:Connect(function()
-                Creator.Tween(card, { BackgroundColor3 = Creator.GetThemeProperty("CardBackground") }, 0.15)
+                Creator.Tween(card, { BackgroundColor3 = Theme.CardBackground }, 0.15)
             end)
 
             return {
@@ -2020,12 +1738,11 @@ function HoshiUI:CreateWindow(config)
             local card = Creator.New("Frame", {
                 Name = "Slider_" .. title,
                 Size = UDim2.new(1, 0, 0, desc and 62 or 52),
-                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
-                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                BackgroundColor3 = Theme.CardBackground,
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
-            Creator.AddStroke(card, "Border", 1)
+            Creator.AddStroke(card, Theme.Border, 1)
 
             Creator.New("TextLabel", {
                 Name = "Title",
@@ -2033,11 +1750,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, 12, 0, 8),
                 BackgroundTransparency = 1,
                 Text = title,
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Text" },
                 Parent = card
             })
 
@@ -2047,11 +1763,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(1, -72, 0, 8),
                 BackgroundTransparency = 1,
                 Text = formatStr:gsub("{value}", tostring(currentValue)),
-                TextColor3 = Creator.GetThemeProperty("Accent"),
+                TextColor3 = Theme.Accent,
                 TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Right,
-                ThemeTag = { TextColor3 = "Accent" },
                 Parent = card
             })
 
@@ -2062,11 +1777,10 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, 12, 0, 24),
                     BackgroundTransparency = 1,
                     Text = desc,
-                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextColor3 = Theme.SubText,
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    ThemeTag = { TextColor3 = "SubText" },
                     Parent = card
                 })
             end
@@ -2085,8 +1799,7 @@ function HoshiUI:CreateWindow(config)
                 Name = "TrackBg",
                 Size = UDim2.new(1, 0, 0, 4),
                 Position = UDim2.new(0, 0, 0.5, -2),
-                BackgroundColor3 = Creator.GetThemeProperty("ToggleOff"),
-                ThemeTag = { BackgroundColor3 = "ToggleOff" },
+                BackgroundColor3 = Theme.ToggleOff,
                 Parent = trackHolder
             })
             Creator.AddCorner(trackBg, 2)
@@ -2095,8 +1808,7 @@ function HoshiUI:CreateWindow(config)
             local trackFill = Creator.New("Frame", {
                 Name = "TrackFill",
                 Size = UDim2.new(fillPercent, 0, 1, 0),
-                BackgroundColor3 = Creator.GetThemeProperty("Accent"),
-                ThemeTag = { BackgroundColor3 = "Accent" },
+                BackgroundColor3 = Theme.Accent,
                 Parent = trackBg
             })
             Creator.AddCorner(trackFill, 2)
@@ -2181,13 +1893,12 @@ function HoshiUI:CreateWindow(config)
             local card = Creator.New("Frame", {
                 Name = "Dropdown_" .. title,
                 Size = UDim2.new(1, 0, 0, desc and 48 or 38),
-                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                BackgroundColor3 = Theme.CardBackground,
                 ClipsDescendants = true,
-                ThemeTag = { BackgroundColor3 = "CardBackground" },
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
-            local stroke = Creator.AddStroke(card, "Border", 1)
+            local stroke = Creator.AddStroke(card, Theme.Border, 1)
 
             local headerBtn = Creator.New("TextButton", {
                 Name = "Header",
@@ -2204,11 +1915,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, 12, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
                 Text = title,
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Text" },
                 Parent = headerBtn
             })
 
@@ -2219,11 +1929,10 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, 12, 0, 26),
                     BackgroundTransparency = 1,
                     Text = desc,
-                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextColor3 = Theme.SubText,
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    ThemeTag = { TextColor3 = "SubText" },
                     Parent = headerBtn
                 })
             end
@@ -2244,12 +1953,11 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0.5, 0, 0, 0),
                 BackgroundTransparency = 1,
                 Text = getDisplayString(),
-                TextColor3 = Creator.GetThemeProperty("Accent"),
+                TextColor3 = Theme.Accent,
                 TextSize = 12,
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Right,
                 TextTruncate = Enum.TextTruncate.AtEnd,
-                ThemeTag = { TextColor3 = "Accent" },
                 Parent = headerBtn
             })
 
@@ -2259,8 +1967,7 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(1, -24, 0.5, -7),
                 BackgroundTransparency = 1,
                 Image = IconEngine.GetIcon("chevron-down"),
-                ImageColor3 = Creator.GetThemeProperty("SubText"),
-                ThemeTag = { ImageColor3 = "SubText" },
+                ImageColor3 = Theme.SubText,
                 Parent = headerBtn
             })
 
@@ -2290,11 +1997,11 @@ function HoshiUI:CreateWindow(config)
                     local optBtn = Creator.New("TextButton", {
                         Name = "Opt_" .. optStr,
                         Size = UDim2.new(1, 0, 0, 28),
-                        BackgroundColor3 = isSelected and Creator.GetThemeProperty("Accent") or Creator.GetThemeProperty("ToggleOff"),
+                        BackgroundColor3 = isSelected and Theme.Accent or Theme.ToggleOff,
                         BackgroundTransparency = isSelected and 0.85 or 0.5,
                         AutoButtonColor = false,
                         Text = "  " .. optStr,
-                        TextColor3 = isSelected and Creator.GetThemeProperty("Accent") or Creator.GetThemeProperty("Text"),
+                        TextColor3 = isSelected and Theme.Accent or Theme.Text,
                         TextSize = 12,
                         Font = Enum.Font.GothamMedium,
                         TextXAlignment = Enum.TextXAlignment.Left,
@@ -2372,12 +2079,11 @@ function HoshiUI:CreateWindow(config)
             local card = Creator.New("Frame", {
                 Name = "Input_" .. title,
                 Size = UDim2.new(1, 0, 0, 42),
-                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
-                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                BackgroundColor3 = Theme.CardBackground,
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
-            local stroke = Creator.AddStroke(card, "Border", 1)
+            local stroke = Creator.AddStroke(card, Theme.Border, 1)
 
             Creator.New("TextLabel", {
                 Name = "Title",
@@ -2385,11 +2091,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, 12, 0, 0),
                 BackgroundTransparency = 1,
                 Text = title,
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Text" },
                 Parent = card
             })
 
@@ -2397,8 +2102,7 @@ function HoshiUI:CreateWindow(config)
                 Name = "BoxContainer",
                 Size = UDim2.new(0.55, 0, 0, 26),
                 Position = UDim2.new(0.45, -12, 0.5, -13),
-                BackgroundColor3 = Creator.GetThemeProperty("ToggleOff"),
-                ThemeTag = { BackgroundColor3 = "ToggleOff" },
+                BackgroundColor3 = Theme.ToggleOff,
                 Parent = card
             })
             Creator.AddCorner(boxContainer, 6)
@@ -2410,13 +2114,12 @@ function HoshiUI:CreateWindow(config)
                 BackgroundTransparency = 1,
                 Text = default,
                 PlaceholderText = placeholder,
-                PlaceholderColor3 = Creator.GetThemeProperty("SubText"),
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                PlaceholderColor3 = Theme.SubText,
+                TextColor3 = Theme.Text,
                 TextSize = 12,
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ClearTextOnFocus = false,
-                ThemeTag = { TextColor3 = "Text", PlaceholderColor3 = "SubText" },
                 Parent = boxContainer
             })
 
@@ -2424,19 +2127,18 @@ function HoshiUI:CreateWindow(config)
                 Name = "Indicator",
                 Size = UDim2.new(0, 0, 0, 2),
                 Position = UDim2.new(0, 0, 1, -2),
-                BackgroundColor3 = Creator.GetThemeProperty("Accent"),
-                ThemeTag = { BackgroundColor3 = "Accent" },
+                BackgroundColor3 = Theme.Accent,
                 Parent = boxContainer
             })
 
             textBox.Focused:Connect(function()
                 Creator.Tween(indicator, { Size = UDim2.new(1, 0, 0, 2) }, 0.18)
-                Creator.Tween(stroke, { Color = Creator.GetThemeProperty("Accent") }, 0.18)
+                Creator.Tween(stroke, { Color = Theme.Accent }, 0.18)
             end)
 
             textBox.FocusLost:Connect(function(enterPressed)
                 Creator.Tween(indicator, { Size = UDim2.new(0, 0, 0, 2) }, 0.18)
-                Creator.Tween(stroke, { Color = Creator.GetThemeProperty("Border") }, 0.18)
+                Creator.Tween(stroke, { Color = Theme.Border }, 0.18)
 
                 if numeric then
                     local num = tonumber(textBox.Text)
@@ -2475,12 +2177,11 @@ function HoshiUI:CreateWindow(config)
             local card = Creator.New("Frame", {
                 Name = "Keybind_" .. title,
                 Size = UDim2.new(1, 0, 0, desc and 48 or 38),
-                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
-                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                BackgroundColor3 = Theme.CardBackground,
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
-            Creator.AddStroke(card, "Border", 1)
+            Creator.AddStroke(card, Theme.Border, 1)
 
             Creator.New("TextLabel", {
                 Name = "Title",
@@ -2488,11 +2189,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, 12, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
                 Text = title,
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Text" },
                 Parent = card
             })
 
@@ -2503,11 +2203,10 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, 12, 0, 26),
                     BackgroundTransparency = 1,
                     Text = desc,
-                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextColor3 = Theme.SubText,
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    ThemeTag = { TextColor3 = "SubText" },
                     Parent = card
                 })
             end
@@ -2516,13 +2215,12 @@ function HoshiUI:CreateWindow(config)
                 Name = "BindButton",
                 Size = UDim2.new(0, 75, 0, 24),
                 Position = UDim2.new(1, -87, 0.5, -12),
-                BackgroundColor3 = Creator.GetThemeProperty("ToggleOff"),
+                BackgroundColor3 = Theme.ToggleOff,
                 AutoButtonColor = false,
                 Text = typeof(boundKey) == "EnumItem" and boundKey.Name or tostring(boundKey),
-                TextColor3 = Creator.GetThemeProperty("Accent"),
+                TextColor3 = Theme.Accent,
                 TextSize = 11,
                 Font = Enum.Font.GothamBold,
-                ThemeTag = { BackgroundColor3 = "ToggleOff", TextColor3 = "Accent" },
                 Parent = card
             })
             Creator.AddCorner(bindBtn, 6)
@@ -2530,7 +2228,7 @@ function HoshiUI:CreateWindow(config)
             bindBtn.MouseButton1Click:Connect(function()
                 isListening = true
                 bindBtn.Text = "..."
-                Creator.Tween(bindBtn, { BackgroundColor3 = Creator.GetThemeProperty("CardHover") }, 0.15)
+                Creator.Tween(bindBtn, { BackgroundColor3 = Theme.CardHover }, 0.15)
             end)
 
             UserInputService.InputBegan:Connect(function(input, gpe)
@@ -2538,7 +2236,7 @@ function HoshiUI:CreateWindow(config)
                     isListening = false
                     boundKey = input.KeyCode
                     bindBtn.Text = boundKey.Name
-                    Creator.Tween(bindBtn, { BackgroundColor3 = Creator.GetThemeProperty("ToggleOff") }, 0.15)
+                    Creator.Tween(bindBtn, { BackgroundColor3 = Theme.ToggleOff }, 0.15)
                     if flag then ConfigManager:Set(flag, boundKey) end
                     pcall(callback, boundKey)
                 elseif not gpe and not isListening and input.KeyCode == boundKey then
@@ -2574,14 +2272,13 @@ function HoshiUI:CreateWindow(config)
             local card = Creator.New("TextButton", {
                 Name = "ColorPicker_" .. title,
                 Size = UDim2.new(1, 0, 0, desc and 48 or 38),
-                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                BackgroundColor3 = Theme.CardBackground,
                 AutoButtonColor = false,
                 Text = "",
-                ThemeTag = { BackgroundColor3 = "CardBackground" },
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
-            Creator.AddStroke(card, "Border", 1)
+            Creator.AddStroke(card, Theme.Border, 1)
 
             Creator.New("TextLabel", {
                 Name = "Title",
@@ -2589,11 +2286,10 @@ function HoshiUI:CreateWindow(config)
                 Position = UDim2.new(0, 12, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
                 Text = title,
-                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                ThemeTag = { TextColor3 = "Text" },
                 Parent = card
             })
 
@@ -2604,11 +2300,10 @@ function HoshiUI:CreateWindow(config)
                     Position = UDim2.new(0, 12, 0, 26),
                     BackgroundTransparency = 1,
                     Text = desc,
-                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextColor3 = Theme.SubText,
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    ThemeTag = { TextColor3 = "SubText" },
                     Parent = card
                 })
             end
@@ -2621,7 +2316,7 @@ function HoshiUI:CreateWindow(config)
                 Parent = card
             })
             Creator.AddCorner(colorPreview, 4)
-            Creator.AddStroke(colorPreview, "Border", 1)
+            Creator.AddStroke(colorPreview, Theme.Border, 1)
 
             local function setColor(newCol)
                 currentColor = newCol
