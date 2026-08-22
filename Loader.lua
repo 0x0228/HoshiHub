@@ -342,7 +342,7 @@ local keyIcon = Instance.new("ImageLabel")
 keyIcon.Size = UDim2.new(0, 18, 0, 18)
 keyIcon.Position = UDim2.new(0, 12, 0.5, -9)
 keyIcon.BackgroundTransparency = 1
-keyIcon.Image = "rbxassetid://10709798082" -- key icon
+keyIcon.Image = "rbxassetid://10709798779" -- lock icon
 keyIcon.ImageColor3 = Theme.SubText
 keyIcon.Parent = inputContainer
 
@@ -351,6 +351,7 @@ textBox.Name = "KeyBox"
 textBox.Size = UDim2.new(1, -44, 1, 0)
 textBox.Position = UDim2.new(0, 38, 0, 0)
 textBox.BackgroundTransparency = 1
+textBox.Text = ""
 textBox.PlaceholderText = "Enter Access Password..."
 textBox.PlaceholderColor3 = Theme.SubText
 textBox.TextColor3 = Theme.Text
