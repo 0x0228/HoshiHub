@@ -1495,21 +1495,22 @@ function HoshiUI:CreateWindow(config)
 
         -- Smooth Dragging System with Click Differentiation
         local isDragging = false
-        local dragStartPos = Vector2.new(0, 0)
-        local btnStartPos = floatingBtn.Position
-        local dragInput = nil
+        local dragStartMouse = Vector2.new()
+        local dragStartAbsolute = Vector2.new()
         local hasMoved = false
 
         Creator.AddSignal(floatingBtn.InputBegan, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 isDragging = true
                 hasMoved = false
-                dragStartPos = input.Position
-                btnStartPos = floatingBtn.Position
+                dragStartMouse = Vector2.new(input.Position.X, input.Position.Y)
+                dragStartAbsolute = floatingBtn.AbsolutePosition
 
-                input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then
+                local endConn
+                endConn = UserInputService.InputEnded:Connect(function(endInput)
+                    if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
                         isDragging = false
+                        if endConn then endConn:Disconnect() end
                         if not hasMoved then
                             toggleWindow()
                         end
@@ -1518,22 +1519,16 @@ function HoshiUI:CreateWindow(config)
             end
         end)
 
-        Creator.AddSignal(floatingBtn.InputChanged, function(input)
-            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                dragInput = input
-            end
-        end)
-
         Creator.AddSignal(UserInputService.InputChanged, function(input)
-            if input == dragInput and isDragging then
-                local delta = input.Position - dragStartPos
-                if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then
+            if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStartMouse
+                if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then
                     hasMoved = true
                 end
                 local vp = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
-                local newX = math.clamp(btnStartPos.X.Offset + delta.X, 0, vp.X - 52)
-                local newY = math.clamp(btnStartPos.Y.Offset + delta.Y, 0, vp.Y - 52)
-                floatingBtn.Position = UDim2.new(btnStartPos.X.Scale, newX, btnStartPos.Y.Scale, newY)
+                local targetX = math.clamp(dragStartAbsolute.X + delta.X, 4, vp.X - 52)
+                local targetY = math.clamp(dragStartAbsolute.Y + delta.Y, 4, vp.Y - 52)
+                floatingBtn.Position = UDim2.fromOffset(targetX, targetY)
             end
         end)
     end

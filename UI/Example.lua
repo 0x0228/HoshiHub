@@ -472,19 +472,6 @@ SettingsTab:CreateSlider({
 })
 
 SettingsTab:CreateDivider()
-SettingsTab:CreateSection("Mobile & Floating Action Button", "Control the floating circular toggle")
-
-SettingsTab:CreateToggle({
-    Title = "Show Floating Toggle Button",
-    Desc = "Show or hide the on-screen draggable circle button",
-    Default = true,
-    Flag = "Showcase_ShowFloating",
-    Callback = function(state)
-        Window:SetFloatingVisible(state)
-    end
-})
-
-SettingsTab:CreateDivider()
 SettingsTab:CreateSection("Auto-Save Config Engine", "Real-time state persistence to executor storage")
 
 SettingsTab:CreateParagraph({
