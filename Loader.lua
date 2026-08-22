@@ -491,37 +491,36 @@ footerLabel.Font = Enum.Font.GothamMedium
 footerLabel.TextXAlignment = Enum.TextXAlignment.Center
 footerLabel.Parent = mainCard
 
--- ==============================================================================
--- 6. AUTHENTICATION & EXECUTION DISPATCHER
--- ==============================================================================
 local isVerifying = false
 
-local function executeScript()
+local function executeScript(isAuto)
     statusLabel.TextColor3 = Theme.Success
     statusLabel.Text = "Password Verified! Launching " .. detectedGameName .. "..."
     
-    TweenService:Create(progressFill, TweenInfo.new(0.8, Enum.EasingStyle.Quad), { Size = UDim2.new(1, 0, 1, 0) }):Play()
-    task.wait(0.85)
-
-    -- Animate card close
-    local closeAnim = TweenService:Create(cardScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0.4 })
-    closeAnim:Play()
-    closeAnim.Completed:Connect(function()
-        screenGui:Destroy()
-        -- Load target script from GitHub repository
+    local animDuration = isAuto and 0.15 or 0.35
+    TweenService:Create(progressFill, TweenInfo.new(animDuration, Enum.EasingStyle.Quad), { Size = UDim2.new(1, 0, 1, 0) }):Play()
+    
+    task.spawn(function()
         local url = LoaderConfig.GitHubRaw .. "/" .. targetScript
         local success, scriptContent = pcall(function() return game:HttpGet(url) end)
-        if success and scriptContent and scriptContent ~= "" then
-            task.spawn(function()
-                loadstring(scriptContent)()
-            end)
-        else
-            warn("[HoshiHub Loader] Failed to load target script: " .. url)
-        end
+        
+        task.wait(animDuration)
+        local closeAnim = TweenService:Create(cardScale, TweenInfo.new(0.15, Enum.EasingStyle.Sine), { Scale = 0.5 })
+        closeAnim:Play()
+        closeAnim.Completed:Connect(function()
+            screenGui:Destroy()
+            if success and scriptContent and scriptContent ~= "" then
+                task.spawn(function()
+                    loadstring(scriptContent)()
+                end)
+            else
+                warn("[HoshiHub Loader] Failed to load target script: " .. url)
+            end
+        end)
     end)
 end
 
-local function verifyPassword(inputKey)
+local function verifyPassword(inputKey, isAuto)
     if isVerifying then return end
     isVerifying = true
 
@@ -538,7 +537,7 @@ local function verifyPassword(inputKey)
         if LoaderConfig.SaveAuth then
             saveKey(cleanInput)
         end
-        executeScript()
+        executeScript(isAuto)
     else
         statusLabel.TextColor3 = Theme.Danger
         statusLabel.Text = "Invalid Password! Check Discord"
@@ -549,27 +548,30 @@ local function verifyPassword(inputKey)
     end
 end
 
+enterBtn.Activated:Connect(function()
+    verifyPassword(nil, false)
+end)
 enterBtn.MouseButton1Click:Connect(function()
-    verifyPassword()
+    verifyPassword(nil, false)
 end)
 
 textBox.FocusLost:Connect(function(enterPressed)
     if enterPressed then
-        verifyPassword()
+        verifyPassword(nil, false)
     end
 end)
 
 -- Entrance Animation
-TweenService:Create(cardScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+TweenService:Create(cardScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 
--- Check Auto-Login with Saved Key
+-- Check Auto-Login with Saved Key (Instant Fast Boot)
 local saved = getSavedKey()
 if saved and saved == LoaderConfig.Password then
     textBox.Text = saved
     statusLabel.TextColor3 = Theme.Success
-    statusLabel.Text = "Saved password detected! Logging in automatically..."
-    task.delay(0.4, function()
-        verifyPassword(saved)
+    statusLabel.Text = "Auto-login verified! Loading " .. detectedGameName .. "..."
+    task.spawn(function()
+        verifyPassword(saved, true)
     end)
 end
 

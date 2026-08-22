@@ -411,6 +411,19 @@ function Creator.AddSignal(rbxSignal, fn)
     return conn
 end
 
+function Creator.OnClick(btn, callback)
+    if not btn then return end
+    local lastClick = 0
+    local function handler(...)
+        local now = tick()
+        if now - lastClick < 0.12 then return end
+        lastClick = now
+        pcall(callback, ...)
+    end
+    btn.Activated:Connect(handler)
+    btn.MouseButton1Click:Connect(handler)
+end
+
 function Creator.Disconnect()
     for _, conn in ipairs(Creator.Signals) do
         if typeof(conn) == "RBXScriptConnection" and conn.Connected then
@@ -1441,7 +1454,7 @@ function HoshiUI:CreateWindow(config)
             Creator.Tween(tabTextLabel, { TextColor3 = Theme.Text }, 0.15)
         end
 
-        tabBtn.MouseButton1Click:Connect(selectThisTab)
+        Creator.OnClick(tabBtn, selectThisTab)
         table.insert(Window.Tabs, Tab)
 
         if #Window.Tabs == 1 then
@@ -1636,7 +1649,7 @@ function HoshiUI:CreateWindow(config)
                 Creator.Tween(card, { BackgroundColor3 = Theme.CardBackground }, 0.15)
                 Creator.Tween(stroke, { Color = Theme.Border }, 0.15)
             end)
-            card.MouseButton1Click:Connect(function()
+            Creator.OnClick(card, function()
                 pcall(callback)
             end)
             return card
@@ -1735,7 +1748,7 @@ function HoshiUI:CreateWindow(config)
                 if not skipCallback then pcall(callback, state) end
             end
 
-            card.MouseButton1Click:Connect(function()
+            Creator.OnClick(card, function()
                 setToggle(not state)
             end)
 
@@ -2094,7 +2107,7 @@ function HoshiUI:CreateWindow(config)
                     })
                     Creator.AddCorner(optBtn, 6)
 
-                    optBtn.MouseButton1Click:Connect(function()
+                    Creator.OnClick(optBtn, function()
                         if isMulti then
                             local foundIndex = table.find(selected, optStr)
                             if foundIndex then
@@ -2120,7 +2133,7 @@ function HoshiUI:CreateWindow(config)
             end
 
             rebuildOptions()
-            headerBtn.MouseButton1Click:Connect(function() toggleDropdown() end)
+            Creator.OnClick(headerBtn, function() toggleDropdown() end)
 
             if flag then
                 ConfigManager:OnChanged(flag, function(newVal)
