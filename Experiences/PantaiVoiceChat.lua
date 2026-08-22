@@ -124,37 +124,39 @@ local function getActiveRod()
     return nil
 end
 
-local isWaitingForBite = false
+-- Frame-accurate minigame auto-solver
+RunService.RenderStepped:Connect(function()
+    if State.AutoFish or State.InstantReel then
+        local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local mgGui = pg and pg:FindFirstChild("MiniGameGUI")
+        if mgGui then
+            local barAttc = mgGui:FindFirstChild("Bar Attc")
+            if barAttc then
+                local detec = barAttc:FindFirstChild("Detec")
+                local attc = barAttc:FindFirstChild("Attc")
+                if detec and attc then
+                    -- Lock detection bar directly to the fish target position
+                    detec.Position = UDim2.new(attc.Position.X.Scale, 0, detec.Position.Y.Scale, 0)
+                end
+            end
+            local barDuration = mgGui:FindFirstChild("Bar Duration")
+            if barDuration then
+                local barVol = barDuration:FindFirstChild("BarVol")
+                if barVol and State.InstantReel then
+                    barVol.Size = UDim2.new(1, 0, 1, 0)
+                end
+            end
+        end
+    end
+end)
 
--- Function to solve minigame instantly
+-- Function to solve minigame via network events
 local function autoSolveActiveMiniGame()
     pcall(function()
         local rod = getActiveRod()
         local rodName = rod and rod.Name or "NormalRod"
         local mgRemote = rod and rod:FindFirstChild("MiniGame")
         
-        -- Align GUI indicator bar if present
-        local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-        local mgGui = pg and pg:FindFirstChild("MiniGameGUI")
-        if mgGui then
-            local barAttc = mgGui:FindFirstChild("Bar Attc")
-            local barDuration = mgGui:FindFirstChild("Bar Duration")
-            if barAttc then
-                local detec = barAttc:FindFirstChild("Detec")
-                local attc = barAttc:FindFirstChild("Attc")
-                if detec and attc then
-                    detec.Position = attc.Position
-                end
-            end
-            if barDuration then
-                local barVol = barDuration:FindFirstChild("BarVol")
-                if barVol then
-                    barVol.Size = UDim2.new(1, 0, 1, 0)
-                end
-            end
-        end
-
-        -- Fire Server Win / Completion Events
         if currentSessionId and typeof(currentSessionId) == "string" then
             if mgRemote and mgRemote:IsA("RemoteEvent") then
                 mgRemote:FireServer(true, { SessionId = currentSessionId })
@@ -186,12 +188,10 @@ if GlobalMiniGameRemote and GlobalMiniGameRemote:IsA("RemoteEvent") then
         local action = type(arg1) == "table" and (arg1.Action or arg1.action or arg1.Status or arg1.status or arg1[1]) or arg1
         local payload = type(arg1) == "table" and arg1 or arg2
         if action == "Start" or type(payload) == "table" then
-            isWaitingForBite = false
             if type(payload) == "table" and (payload.SessionId or payload.sessionId) then
                 currentSessionId = payload.SessionId or payload.sessionId
             end
             if State.AutoFish and State.InstantReel then
-                task.wait(0.08)
                 autoSolveActiveMiniGame()
             end
         end
@@ -210,12 +210,10 @@ local function hookRodRemotes(rod)
             local action = type(arg1) == "table" and (arg1.Action or arg1.action or arg1.Status or arg1.status or arg1[1]) or arg1
             local payload = type(arg1) == "table" and arg1 or arg2
             if action == "Start" or type(payload) == "table" then
-                isWaitingForBite = false
                 if type(payload) == "table" and (payload.SessionId or payload.sessionId) then
                     currentSessionId = payload.SessionId or payload.sessionId
                 end
                 if State.AutoFish and State.InstantReel then
-                    task.wait(0.08)
                     autoSolveActiveMiniGame()
                 end
             end
@@ -256,11 +254,10 @@ local function hookPlayerGuiMiniGame()
     
     pg.ChildAdded:Connect(function(child)
         if child.Name == "MiniGameGUI" then
-            isWaitingForBite = false
             if State.AutoFish and State.InstantReel then
                 task.spawn(function()
-                    for i = 1, 6 do
-                        task.wait(0.06)
+                    for i = 1, 8 do
+                        task.wait(0.05)
                         autoSolveActiveMiniGame()
                     end
                 end)
@@ -270,10 +267,9 @@ local function hookPlayerGuiMiniGame()
     
     pg.ChildRemoved:Connect(function(child)
         if child.Name == "MiniGameGUI" then
-            isWaitingForBite = false
             if State.AutoFish and State.AutoSell then
                 task.spawn(function()
-                    task.wait(0.2)
+                    task.wait(0.3)
                     if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
                         JualIkanRemote:FireServer("SellAll", "SellAll")
                     end
@@ -288,8 +284,10 @@ end
 hookPlayerGuiMiniGame()
 
 -- ==============================================================================
--- 3. FISHING AUTOMATION THREAD (ROBUST STATE MACHINE)
+-- 3. FISHING AUTOMATION THREAD (LIFECYCLE-SYNCHRONIZED)
 -- ==============================================================================
+local isFishingActive = false
+
 task.spawn(function()
     while true do
         task.wait(0.2)
@@ -297,55 +295,63 @@ task.spawn(function()
             local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
             local mgGui = pg and pg:FindFirstChild("MiniGameGUI")
             
-            if mgGui then
-                -- Minigame is currently active on screen!
-                isWaitingForBite = false
-                if State.InstantReel then
-                    autoSolveActiveMiniGame()
+            if not mgGui and not isFishingActive then
+                isFishingActive = true
+                
+                pcall(function()
+                    local rod = getActiveRod()
+                    if rod then
+                        -- 1. Ensure Rod is equipped
+                        if rod.Parent ~= LocalPlayer.Character then
+                            local hum = getHumanoid()
+                            if hum then hum:EquipTool(rod) end
+                            task.wait(0.3)
+                        end
+
+                        -- 2. Trigger legit activation and cast
+                        pcall(function() rod:Activate() end)
+                        local castRemote = rod:FindFirstChild("CastToPosition")
+                        if castRemote and castRemote:IsA("RemoteEvent") then
+                            castRemote:FireServer(nil)
+                        end
+                        if CastRodRemote and CastRodRemote:IsA("RemoteEvent") then
+                            CastRodRemote:FireServer(nil, rod.Name)
+                        end
+                    end
+                end)
+                
+                -- Wait until MiniGameGUI appears (bite detected) or timeout after 12s
+                local startTime = os.clock()
+                repeat
+                    task.wait(0.2)
+                    mgGui = pg and pg:FindFirstChild("MiniGameGUI")
+                until mgGui or not State.AutoFish or (os.clock() - startTime > 12)
+                
+                -- If minigame started, wait until it finishes and closes
+                if mgGui then
+                    repeat
+                        task.wait(0.1)
+                        mgGui = pg and pg:FindFirstChild("MiniGameGUI")
+                    until not mgGui or not State.AutoFish
                 end
-            else
-                -- No minigame active on screen. Check if we need to cast
-                if not isWaitingForBite then
-                    isWaitingForBite = true
-                    task.wait(State.CastDelay)
-                    
+                
+                -- Fish caught! Auto-sell and wait configured delay before next cast
+                if State.AutoSell then
                     pcall(function()
-                        local rod = getActiveRod()
-                        if rod then
-                            -- 1. Ensure Rod is equipped
-                            if rod.Parent ~= LocalPlayer.Character then
-                                local hum = getHumanoid()
-                                if hum then hum:EquipTool(rod) end
-                                task.wait(0.3)
-                            end
-
-                            -- 2. Fire Cast
-                            local castRemote = rod:FindFirstChild("CastToPosition")
-                            if castRemote and castRemote:IsA("RemoteEvent") then
-                                castRemote:FireServer(nil)
-                            end
-                            if CastRodRemote and CastRodRemote:IsA("RemoteEvent") then
-                                CastRodRemote:FireServer(nil, rod.Name)
-                            end
-
-                            -- Activate tool
-                            pcall(function() rod:Activate() end)
-                        else
-                            isWaitingForBite = false
+                        if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
+                            JualIkanRemote:FireServer("SellAll", "SellAll")
                         end
-                    end)
-                    
-                    -- Safety watchdog: If no fish bites within 10 seconds, reset wait flag
-                    task.spawn(function()
-                        task.wait(10)
-                        if isWaitingForBite and not (pg and pg:FindFirstChild("MiniGameGUI")) then
-                            isWaitingForBite = false
+                        if SellFishRemote and SellFishRemote:IsA("RemoteEvent") then
+                            SellFishRemote:FireServer()
                         end
                     end)
                 end
+                
+                task.wait(State.CastDelay)
+                isFishingActive = false
             end
         else
-            isWaitingForBite = false
+            isFishingActive = false
         end
     end
 end)

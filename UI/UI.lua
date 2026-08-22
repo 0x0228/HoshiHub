@@ -1962,6 +1962,7 @@ function HoshiUI:CreateWindow(config)
                 BackgroundTransparency = 1,
                 AutoButtonColor = false,
                 Text = "",
+                ZIndex = 3,
                 Parent = card
             })
 
@@ -1970,11 +1971,13 @@ function HoshiUI:CreateWindow(config)
                 Size = UDim2.new(0.5, 0, 0, 16),
                 Position = UDim2.new(0, 12, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
+                Active = false,
                 Text = title,
                 TextColor3 = Theme.Text,
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 4,
                 Parent = headerBtn
             })
 
@@ -1984,11 +1987,13 @@ function HoshiUI:CreateWindow(config)
                     Size = UDim2.new(0.5, 0, 0, 14),
                     Position = UDim2.new(0, 12, 0, 26),
                     BackgroundTransparency = 1,
+                    Active = false,
                     Text = desc,
                     TextColor3 = Theme.SubText,
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    ZIndex = 4,
                     Parent = headerBtn
                 })
             end
@@ -2015,6 +2020,7 @@ function HoshiUI:CreateWindow(config)
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Right,
                 TextTruncate = Enum.TextTruncate.AtEnd,
+                ZIndex = 4,
                 Parent = headerBtn
             })
 
@@ -2026,6 +2032,7 @@ function HoshiUI:CreateWindow(config)
                 Active = false,
                 Image = IconEngine.GetIcon("chevron-down"),
                 ImageColor3 = Theme.SubText,
+                ZIndex = 4,
                 Parent = headerBtn
             })
 
@@ -2036,6 +2043,7 @@ function HoshiUI:CreateWindow(config)
                 BackgroundTransparency = 1,
                 AutomaticSize = Enum.AutomaticSize.Y,
                 Visible = false,
+                ZIndex = 5,
                 Parent = card
             })
             local optionLayout = Creator.New("UIListLayout", {
@@ -2045,6 +2053,21 @@ function HoshiUI:CreateWindow(config)
             })
 
             local optionButtons = {}
+
+            local function toggleDropdown(forceState)
+                if forceState ~= nil then isOpen = forceState else isOpen = not isOpen end
+                local baseH = desc and 48 or 38
+                local targetH = isOpen and (baseH + (#options * 32) + 8) or baseH
+
+                optionList.Visible = true
+                local anim = Creator.Tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.22, Enum.EasingStyle.Quad)
+                Creator.Tween(arrowIcon, { Rotation = isOpen and 180 or 0 }, 0.2)
+                if not isOpen and anim then
+                    anim.Completed:Connect(function()
+                        if not isOpen then optionList.Visible = false end
+                    end)
+                end
+            end
 
             local function rebuildOptions()
                 for _, btn in pairs(optionButtons) do btn:Destroy() end
@@ -2066,6 +2089,7 @@ function HoshiUI:CreateWindow(config)
                         Font = Enum.Font.GothamMedium,
                         TextXAlignment = Enum.TextXAlignment.Left,
                         LayoutOrder = idx,
+                        ZIndex = 6,
                         Parent = optionList
                     })
                     Creator.AddCorner(optBtn, 6)
@@ -2087,6 +2111,7 @@ function HoshiUI:CreateWindow(config)
                             if flag then ConfigManager:Set(flag, selected) end
                             valLabel.Text = getDisplayString()
                             rebuildOptions()
+                            toggleDropdown(false)
                             pcall(callback, selected)
                         end
                     end)
@@ -2095,23 +2120,7 @@ function HoshiUI:CreateWindow(config)
             end
 
             rebuildOptions()
-
-            local function toggleDropdown()
-                isOpen = not isOpen
-                local baseH = desc and 48 or 38
-                local targetH = isOpen and (baseH + (#options * 32) + 8) or baseH
-
-                optionList.Visible = true
-                local anim = Creator.Tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.22, Enum.EasingStyle.Quad)
-                Creator.Tween(arrowIcon, { Rotation = isOpen and 180 or 0 }, 0.2)
-                if not isOpen and anim then
-                    anim.Completed:Connect(function()
-                        if not isOpen then optionList.Visible = false end
-                    end)
-                end
-            end
-
-            headerBtn.MouseButton1Click:Connect(toggleDropdown)
+            headerBtn.MouseButton1Click:Connect(function() toggleDropdown() end)
 
             if flag then
                 ConfigManager:OnChanged(flag, function(newVal)
