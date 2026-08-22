@@ -1958,26 +1958,18 @@ function HoshiUI:CreateWindow(config)
 
             local selected = default
             local isOpen = false
+            local baseH = desc and 48 or 38
 
             local card = Creator.New("Frame", {
                 Name = "Dropdown_" .. title,
-                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
+                Size = UDim2.new(1, 0, 0, baseH),
                 BackgroundColor3 = Theme.CardBackground,
                 ClipsDescendants = true,
+                ZIndex = 2,
                 Parent = pageScroll
             })
             Creator.AddCorner(card, 8)
             local stroke = Creator.AddStroke(card, Theme.Border, 1)
-
-            local headerBtn = Creator.New("TextButton", {
-                Name = "Header",
-                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
-                BackgroundTransparency = 1,
-                AutoButtonColor = false,
-                Text = "",
-                ZIndex = 3,
-                Parent = card
-            })
 
             Creator.New("TextLabel", {
                 Name = "Title",
@@ -1991,7 +1983,7 @@ function HoshiUI:CreateWindow(config)
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ZIndex = 4,
-                Parent = headerBtn
+                Parent = card
             })
 
             if desc then
@@ -2007,7 +1999,7 @@ function HoshiUI:CreateWindow(config)
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     ZIndex = 4,
-                    Parent = headerBtn
+                    Parent = card
                 })
             end
 
@@ -2023,7 +2015,7 @@ function HoshiUI:CreateWindow(config)
 
             local valLabel = Creator.New("TextLabel", {
                 Name = "ValueDisplay",
-                Size = UDim2.new(0.5, -42, 1, 0),
+                Size = UDim2.new(0.5, -42, 0, baseH),
                 Position = UDim2.new(0.5, 0, 0, 0),
                 BackgroundTransparency = 1,
                 Active = false,
@@ -2034,29 +2026,46 @@ function HoshiUI:CreateWindow(config)
                 TextXAlignment = Enum.TextXAlignment.Right,
                 TextTruncate = Enum.TextTruncate.AtEnd,
                 ZIndex = 4,
-                Parent = headerBtn
+                Parent = card
             })
 
             local arrowIcon = Creator.New("ImageLabel", {
                 Name = "Arrow",
                 Size = UDim2.new(0, 14, 0, 14),
-                Position = UDim2.new(1, -24, 0.5, -7),
+                Position = UDim2.new(1, -24, 0, (baseH / 2) - 7),
                 BackgroundTransparency = 1,
                 Active = false,
                 Image = IconEngine.GetIcon("chevron-down"),
                 ImageColor3 = Theme.SubText,
                 ZIndex = 4,
-                Parent = headerBtn
+                Parent = card
             })
 
-            local optionList = Creator.New("Frame", {
+            -- Hit-testable header button overlay (covers entire top header)
+            local headerBtn = Creator.New("TextButton", {
+                Name = "HeaderClickOverlay",
+                Size = UDim2.new(1, 0, 0, baseH),
+                Position = UDim2.new(0, 0, 0, 0),
+                BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+                BackgroundTransparency = 0.999,
+                AutoButtonColor = false,
+                Text = "",
+                Active = true,
+                ZIndex = 8,
+                Parent = card
+            })
+
+            local optionList = Creator.New("ScrollingFrame", {
                 Name = "OptionList",
-                Size = UDim2.new(1, -24, 0, 0),
-                Position = UDim2.new(0, 12, 0, desc and 48 or 38),
+                Size = UDim2.new(1, -16, 0, 0),
+                Position = UDim2.new(0, 8, 0, baseH + 4),
                 BackgroundTransparency = 1,
-                AutomaticSize = Enum.AutomaticSize.Y,
+                ScrollBarThickness = 3,
+                ScrollBarImageColor3 = Theme.Accent,
+                CanvasSize = UDim2.new(0, 0, 0, 0),
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
                 Visible = false,
-                ZIndex = 5,
+                ZIndex = 12,
                 Parent = card
             })
             local optionLayout = Creator.New("UIListLayout", {
@@ -2069,10 +2078,12 @@ function HoshiUI:CreateWindow(config)
 
             local function toggleDropdown(forceState)
                 if forceState ~= nil then isOpen = forceState else isOpen = not isOpen end
-                local baseH = desc and 48 or 38
-                local targetH = isOpen and (baseH + (#options * 32) + 8) or baseH
+                local listH = math.clamp(#options * 32, 32, 192)
+                local targetH = isOpen and (baseH + listH + 10) or baseH
 
+                optionList.Size = UDim2.new(1, -16, 0, listH)
                 optionList.Visible = true
+
                 local anim = Creator.Tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.22, Enum.EasingStyle.Quad)
                 Creator.Tween(arrowIcon, { Rotation = isOpen and 180 or 0 }, 0.2)
                 if not isOpen and anim then
@@ -2092,7 +2103,7 @@ function HoshiUI:CreateWindow(config)
 
                     local optBtn = Creator.New("TextButton", {
                         Name = "Opt_" .. optStr,
-                        Size = UDim2.new(1, 0, 0, 28),
+                        Size = UDim2.new(1, -6, 0, 28),
                         BackgroundColor3 = isSelected and Theme.Accent or Theme.ToggleOff,
                         BackgroundTransparency = isSelected and 0.85 or 0.5,
                         AutoButtonColor = false,
@@ -2102,7 +2113,8 @@ function HoshiUI:CreateWindow(config)
                         Font = Enum.Font.GothamMedium,
                         TextXAlignment = Enum.TextXAlignment.Left,
                         LayoutOrder = idx,
-                        ZIndex = 6,
+                        Active = true,
+                        ZIndex = 15,
                         Parent = optionList
                     })
                     Creator.AddCorner(optBtn, 6)
@@ -2159,8 +2171,9 @@ function HoshiUI:CreateWindow(config)
                     options = newOptions or {}
                     rebuildOptions()
                     if isOpen then
-                        local baseH = desc and 48 or 38
-                        local targetH = baseH + (#options * 32) + 8
+                        local listH = math.clamp(#options * 32, 32, 192)
+                        local targetH = baseH + listH + 10
+                        optionList.Size = UDim2.new(1, -16, 0, listH)
                         Creator.Tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.15)
                     end
                 end,
