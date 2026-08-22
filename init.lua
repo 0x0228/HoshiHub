@@ -1,12 +1,12 @@
 -- ==============================================================================
--- HoshiHub — Main Repository Entry Point
--- Load with: loadstring(game:HttpGet("https://raw.githubusercontent.com/0x0228/HoshiHub/master/init.lua"))()
+-- HoshiHub — Main Repository Entry Point & Auto-Loader
+-- Load with: loadstring(game:HttpGet("https://raw.githubusercontent.com/0x0228/HoshiHub/master/init.lua?t=" .. tick()))()
 -- ==============================================================================
 
 local GITHUB_RAW = "https://raw.githubusercontent.com/0x0228/HoshiHub/master"
 
 local function loadHubModule(subPath)
-    local url = GITHUB_RAW .. "/" .. subPath
+    local url = GITHUB_RAW .. "/" .. subPath .. "?t=" .. tick()
     local success, content = pcall(function()
         return game:HttpGet(url)
     end)
@@ -16,6 +16,5 @@ local function loadHubModule(subPath)
     error("[HoshiHub] Could not load module from GitHub: " .. url)
 end
 
--- Export HoshiUI library directly from GitHub
-local HoshiUI = loadHubModule("UI/UI.lua")
-return HoshiUI
+-- Launch the official HoshiHub Loader & Gateway
+return loadHubModule("Loader.lua")
