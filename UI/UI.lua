@@ -1,104 +1,86 @@
---!nolint
---!nocheck
---!native
---!optimize 2
-
 -- ==============================================================================
--- HoshiUI — Next-Gen High-Performance Roblox UI Library (Compiled Release)
--- Native JIT Optimized • 0ms Startup • 1-Request Execution • Flipper Spring Physics
+-- HoshiUI — Premium, Lightweight & High-Performance Roblox UI Library
+-- Architecture engineered with Flipper Spring Physics & Fluent Theme Tagging
+-- Repository: 0x0228/HoshiHub
 -- ==============================================================================
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local TextService = game:GetService("TextService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 -- ==============================================================================
--- 1. PACKAGES: FAST LINKED-LIST SIGNAL
+-- 1. FAST SIGNAL ENGINE
 -- ==============================================================================
 local Signal = {}
 Signal.__index = Signal
 
-local Connection = {}
-Connection.__index = Connection
-
-function Connection.new(signal, fn)
-    return setmetatable({
-        _signal = signal,
-        _fn = fn,
-        _next = nil,
-        _prev = nil,
-        Connected = true,
-    }, Connection)
-end
-
-function Connection:Disconnect()
-    if not self.Connected then return end
-    self.Connected = false
-    if self._signal._head == self then self._signal._head = self._next end
-    if self._signal._tail == self then self._signal._tail = self._prev end
-    if self._prev then self._prev._next = self._next end
-    if self._next then self._next._prev = self._prev end
-    self._signal = nil
-    self._fn = nil
-    self._next = nil
-    self._prev = nil
-end
-
-function Connection:Destroy() self:Disconnect() end
-
 function Signal.new()
-    return setmetatable({ _head = nil, _tail = nil }, Signal)
+    return setmetatable({ _connections = {} }, Signal)
 end
 
 function Signal:Connect(fn)
-    local conn = Connection.new(self, fn)
-    if not self._head then
-        self._head = conn
-        self._tail = conn
-    else
-        conn._prev = self._tail
-        self._tail._next = conn
-        self._tail = conn
-    end
-    return conn
+    local connection = {
+        _fn = fn,
+        _signal = self,
+        Connected = true,
+        Disconnect = function(self)
+            if not self.Connected then return end
+            self.Connected = false
+            for i, conn in ipairs(self._signal._connections) do
+                if conn == self then
+                    table.remove(self._signal._connections, i)
+                    break
+                end
+            end
+        end
+    }
+    table.insert(self._connections, connection)
+    return connection
 end
 
 function Signal:Fire(...)
-    local node = self._head
-    while node do
-        local nextNode = node._next
-        if node.Connected and node._fn then
-            task.spawn(node._fn, ...)
+    for _, conn in ipairs(self._connections) do
+        if conn.Connected then
+            task.spawn(conn._fn, ...)
         end
-        node = nextNode
     end
 end
 
 function Signal:Destroy()
-    local node = self._head
-    while node do
-        local nextNode = node._next
-        node.Connected = false
-        node._signal = nil
-        node._fn = nil
-        node._next = nil
-        node._prev = nil
-        node = nextNode
+    for _, conn in ipairs(self._connections) do
+        conn.Connected = false
     end
-    self._head = nil
-    self._tail = nil
+    self._connections = {}
 end
 
 -- ==============================================================================
--- 2. PACKAGES: FLIPPER SPRING PHYSICS ENGINE
+-- 2. FLIPPER SPRING PHYSICS MOTOR ENGINE
 -- ==============================================================================
 local Flipper = {}
+
+local BaseMotor = {}
+BaseMotor.__index = BaseMotor
+
+function BaseMotor.new()
+    return setmetatable({
+        _onStep = Signal.new(),
+        _onComplete = Signal.new(),
+    }, BaseMotor)
+end
+
+function BaseMotor:onStep(fn) return self._onStep:Connect(fn) end
+function BaseMotor:onComplete(fn) return self._onComplete:Connect(fn) end
+function BaseMotor:destroy()
+    self._onStep:Destroy()
+    self._onComplete:Destroy()
+end
 
 local Spring = {}
 Spring.__index = Spring
@@ -107,8 +89,9 @@ function Spring.new(targetValue, options)
     options = options or {}
     return setmetatable({
         _targetValue = targetValue,
-        _frequency = options.frequency or 4,
+        _frequency = options.frequency or 6,
         _dampingRatio = options.dampingRatio or 1,
+        _initialVelocity = options.initialVelocity or 0,
     }, Spring)
 end
 
@@ -118,6 +101,7 @@ function Spring:step(state, dt)
     local g = self._targetValue
     local p0 = state.position
     local v0 = state.velocity
+
     local offset = p0 - g
     local decay = math.exp(-d * f * dt)
 
@@ -129,9 +113,8 @@ function Spring:step(state, dt)
         local c = math.sqrt(1 - d * d)
         local i = math.cos(f * c * dt)
         local j = math.sin(f * c * dt)
-        local z = (v0 + offset * (d * f)) / (f * c)
-        p1 = (offset * i + z * j) * decay + g
-        v1 = (v0 * (i - d * f * dt) - (offset * (f * c) + z * (d * f)) * j) * decay
+        p1 = (offset * (i + (d / c) * j) + (v0 / (f * c)) * j) * decay + g
+        v1 = (v0 * (i - (d / c) * j) - offset * ((f / c) * j)) * decay
     else
         local c = math.sqrt(d * d - 1)
         local r1 = -f * (d - c)
@@ -149,43 +132,49 @@ function Spring:step(state, dt)
     return { position = p1, velocity = v1, complete = complete }
 end
 
-local SingleMotor = {}
+local Instant = {}
+Instant.__index = Instant
+
+function Instant.new(targetValue)
+    return setmetatable({ _targetValue = targetValue }, Instant)
+end
+
+function Instant:step()
+    return { position = self._targetValue, velocity = 0, complete = true }
+end
+
+local SingleMotor = setmetatable({}, BaseMotor)
 SingleMotor.__index = SingleMotor
 
 function SingleMotor.new(initialValue)
-    return setmetatable({
-        _state = { position = initialValue or 0, velocity = 0, complete = true },
-        _goal = nil,
-        _connections = {},
-        _running = false,
-        _connection = nil,
-    }, SingleMotor)
+    local self = setmetatable(BaseMotor.new(), SingleMotor)
+    self._state = { position = initialValue or 0, velocity = 0, complete = true }
+    self._goal = nil
+    self._connection = nil
+    return self
 end
 
-function SingleMotor:onStep(fn)
-    table.insert(self._connections, fn)
-    fn(self._state.position)
-    return {
-        Disconnect = function()
-            local idx = table.find(self._connections, fn)
-            if idx then table.remove(self._connections, idx) end
-        end
-    }
-end
+function SingleMotor:getValue() return self._state.position end
+function SingleMotor:setValue(val) self._state.position = val self._state.velocity = 0 self._state.complete = true end
 
 function SingleMotor:setGoal(goal)
     self._goal = goal
     self._state.complete = false
-    if not self._running then
-        self._running = true
-        self._connection = RunService.RenderStepped:Connect(function(dt)
-            if not self._goal then self:stop() return end
-            local newState = self._goal:step(self._state, dt)
-            self._state = newState
-            for _, fn in ipairs(self._connections) do fn(newState.position) end
-            if newState.complete then self:stop() end
-        end)
-    end
+    self:_start()
+end
+
+function SingleMotor:_start()
+    if self._connection then return end
+    self._connection = RunService.RenderStepped:Connect(function(dt)
+        if not self._goal then return end
+        local nextState = self._goal:step(self._state, dt)
+        self._state = nextState
+        self._onStep:Fire(nextState.position)
+        if nextState.complete then
+            self._onComplete:Fire()
+            self:stop()
+        end
+    end)
 end
 
 function SingleMotor:stop()
@@ -193,32 +182,87 @@ function SingleMotor:stop()
         self._connection:Disconnect()
         self._connection = nil
     end
-    self._running = false
 end
 
-function SingleMotor:destroy()
-    self:stop()
-    self._connections = {}
+local GroupMotor = setmetatable({}, BaseMotor)
+GroupMotor.__index = GroupMotor
+
+function GroupMotor.new(initialValues)
+    local self = setmetatable(BaseMotor.new(), GroupMotor)
+    self._state = {}
+    for k, v in pairs(initialValues) do
+        self._state[k] = { position = v, velocity = 0, complete = true }
+    end
+    self._goal = {}
+    self._connection = nil
+    return self
+end
+
+function GroupMotor:getValue()
+    local values = {}
+    for k, s in pairs(self._state) do values[k] = s.position end
+    return values
+end
+
+function GroupMotor:setGoal(goals)
+    self._goal = goals
+    for k, goal in pairs(goals) do
+        if type(goal) == "number" then
+            self._goal[k] = Spring.new(goal)
+        end
+        if self._state[k] then self._state[k].complete = false end
+    end
+    self:_start()
+end
+
+function GroupMotor:_start()
+    if self._connection then return end
+    self._connection = RunService.RenderStepped:Connect(function(dt)
+        local allComplete = true
+        local currentValues = {}
+        for k, goal in pairs(self._goal) do
+            if self._state[k] then
+                local nextState = goal:step(self._state[k], dt)
+                self._state[k] = nextState
+                currentValues[k] = nextState.position
+                if not nextState.complete then allComplete = false end
+            end
+        end
+        self._onStep:Fire(currentValues)
+        if allComplete then
+            self._onComplete:Fire()
+            self:stop()
+        end
+    end)
+end
+
+function GroupMotor:stop()
+    if self._connection then
+        self._connection:Disconnect()
+        self._connection = nil
+    end
 end
 
 Flipper.Spring = Spring
+Flipper.Instant = Instant
 Flipper.SingleMotor = SingleMotor
+Flipper.GroupMotor = GroupMotor
 
 -- ==============================================================================
--- 3. THEMES REGISTRY
+-- 3. THEME REGISTRY & PRESETS
 -- ==============================================================================
 local Themes = {
     ["Hoshi"] = {
         Background = Color3.fromRGB(15, 20, 29),       -- Deep cosmic navy
-        CardBackground = Color3.fromRGB(24, 32, 45),   -- Atmospheric starry twilight slate
+        CardBackground = Color3.fromRGB(24, 32, 45),   -- Starry slate container
         CardHover = Color3.fromRGB(33, 44, 61),        -- Celestial luminous hover
         CardStroke = Color3.fromRGB(48, 64, 88),       -- Star-tinted stroke
-        Border = Color3.fromRGB(40, 54, 74),           -- Twilight slate border
-        Accent = Color3.fromRGB(247, 230, 185),        -- Cosmic champagne starlight gold (from planet/rings)
+        Border = Color3.fromRGB(40, 54, 74),           -- Twilight border
+        Accent = Color3.fromRGB(247, 230, 185),        -- Cosmic champagne starlight gold
         AccentHover = Color3.fromRGB(255, 243, 212),   -- Luminous starlight shine
-        AccentGlow = Color3.fromRGB(247, 230, 185),    -- Warm planetary halo glow
-        Text = Color3.fromRGB(250, 248, 244),          -- Celestial ivory white
-        SubText = Color3.fromRGB(156, 178, 198),       -- Muted twilight blue-gray (sky background)
+        AccentGlow = Color3.fromRGB(247, 230, 185),    -- Warm planetary glow
+        Text = Color3.fromRGB(250, 248, 244),          -- Celestial ivory
+        SubText = Color3.fromRGB(156, 178, 198),       -- Muted twilight blue-gray
         Success = Color3.fromRGB(120, 215, 175),       -- Aurora mint
         Warning = Color3.fromRGB(247, 205, 125),       -- Starburst amber
         Danger = Color3.fromRGB(245, 100, 120),        -- Supernova rose
@@ -330,265 +374,79 @@ local Themes = {
 }
 
 -- ==============================================================================
--- 4. EMBEDDED 0MS VERIFIED LUCIDE ICON REGISTRY
+-- 4. LUCIDE ICONS & DECAL RESOLVER ENGINE
 -- ==============================================================================
 local BuiltinIcons = {
-    -- Navigation, Sliders & Controls
     ["sliders"] = "rbxassetid://10734963400",
     ["sliders-horizontal"] = "rbxassetid://10734963191",
-    ["slider"] = "rbxassetid://10734963400",
-    ["controls"] = "rbxassetid://10734963400",
     ["settings"] = "rbxassetid://10734950309",
-    ["settings-2"] = "rbxassetid://10734950309",
-    ["gear"] = "rbxassetid://10734950309",
-    ["cog"] = "rbxassetid://10734950309",
-    ["config"] = "rbxassetid://10734950309",
     ["home"] = "rbxassetid://10723407389",
-    ["house"] = "rbxassetid://10723407389",
-    ["main"] = "rbxassetid://10723407389",
     ["palette"] = "rbxassetid://10723387841",
-    ["theme"] = "rbxassetid://10723387841",
-    ["colors"] = "rbxassetid://10723387841",
-    ["color"] = "rbxassetid://10723387841",
     ["bell"] = "rbxassetid://10709775704",
-    ["notification"] = "rbxassetid://10709775704",
     ["bell-ring"] = "rbxassetid://10709775560",
-    ["bell-off"] = "rbxassetid://10709775320",
-
-    -- Window, Modal & Actions
     ["x"] = "rbxassetid://9886659671",
     ["close"] = "rbxassetid://9886659671",
-    ["cancel"] = "rbxassetid://9886659671",
     ["chevron-up"] = "rbxassetid://9886659276",
     ["minimize"] = "rbxassetid://9886659276",
-    ["min"] = "rbxassetid://9886659276",
     ["chevron-down"] = "rbxassetid://10709790948",
     ["chevron-left"] = "rbxassetid://10709791024",
     ["chevron-right"] = "rbxassetid://10709791175",
-    ["chevrons-up"] = "rbxassetid://10709791750",
-    ["chevrons-down"] = "rbxassetid://10709791437",
-    ["chevrons-left"] = "rbxassetid://10709791532",
-    ["chevrons-right"] = "rbxassetid://10709791624",
     ["check"] = "rbxassetid://10709790644",
-    ["check-circle"] = "rbxassetid://10709790387",
-    ["check-square"] = "rbxassetid://10709790537",
-
-    -- Core UI Symbols
     ["sparkles"] = "rbxassetid://10734974297",
-    ["sparkle"] = "rbxassetid://10734974297",
-    ["star"] = "rbxassetid://10709804513",
     ["box"] = "rbxassetid://10709782497",
-    ["boxes"] = "rbxassetid://10709782582",
-    ["cube"] = "rbxassetid://10709782497",
-    ["layers"] = "rbxassetid://10709798201",
-    ["layout"] = "rbxassetid://10709798317",
-    ["layout-grid"] = "rbxassetid://10723373997",
-    ["grid"] = "rbxassetid://10709796853",
-    ["mouse-pointer"] = "rbxassetid://10709801003",
-    ["cursor"] = "rbxassetid://10709801003",
-    ["pointer"] = "rbxassetid://10709801003",
-
-    -- Combat, Game & Exploits
     ["shield"] = "rbxassetid://10734951847",
     ["shield-check"] = "rbxassetid://10734952136",
     ["shield-alert"] = "rbxassetid://10734952044",
-    ["shield-off"] = "rbxassetid://10709803577",
-    ["swords"] = "rbxassetid://10734975692",
     ["sword"] = "rbxassetid://10734975486",
-    ["axe"] = "rbxassetid://10709769508",
+    ["swords"] = "rbxassetid://10734975692",
     ["zap"] = "rbxassetid://10709819149",
-    ["lightning"] = "rbxassetid://10709819149",
     ["flame"] = "rbxassetid://10723376114",
-    ["fire"] = "rbxassetid://10723376114",
     ["target"] = "rbxassetid://10734979144",
-    ["crosshair"] = "rbxassetid://10709794464",
-    ["aim"] = "rbxassetid://10734979144",
     ["eye"] = "rbxassetid://10709795498",
-    ["eye-off"] = "rbxassetid://10709795415",
-    ["esp"] = "rbxassetid://10709795498",
     ["heart"] = "rbxassetid://10709797316",
-    ["hp"] = "rbxassetid://10709797316",
-    ["health"] = "rbxassetid://10709797316",
-
-    -- Dev & System
-    ["code"] = "rbxassetid://10709793413",
     ["terminal"] = "rbxassetid://10734982144",
-    ["cli"] = "rbxassetid://10734982144",
-    ["console"] = "rbxassetid://10734982144",
+    ["code"] = "rbxassetid://10709793413",
     ["cpu"] = "rbxassetid://10709794132",
-    ["chip"] = "rbxassetid://10709794132",
     ["database"] = "rbxassetid://10709794585",
-    ["storage"] = "rbxassetid://10709794585",
-    ["db"] = "rbxassetid://10709794585",
-    ["server"] = "rbxassetid://10709803109",
-    ["activity"] = "rbxassetid://10709752035",
-    ["pulse"] = "rbxassetid://10709752035",
-    ["stats"] = "rbxassetid://10709752035",
-    ["gauge"] = "rbxassetid://10709796495",
-    ["speed"] = "rbxassetid://10709796495",
-
-    -- Files, Cloud & Data
     ["folder"] = "rbxassetid://10709796387",
-    ["folder-plus"] = "rbxassetid://10709796280",
     ["file"] = "rbxassetid://10709795643",
-    ["file-text"] = "rbxassetid://10709795777",
-    ["save"] = "rbxassetid://10709802641",
-    ["cloud"] = "rbxassetid://10709793102",
-    ["cloud-rain"] = "rbxassetid://10709792874",
-    ["refresh-cw"] = "rbxassetid://10709802290",
-    ["refresh"] = "rbxassetid://10709802290",
-    ["reload"] = "rbxassetid://10709802290",
-    ["sync"] = "rbxassetid://10709802290",
-    ["search"] = "rbxassetid://10709802875",
-    ["find"] = "rbxassetid://10709802875",
     ["trash"] = "rbxassetid://10734983637",
-    ["trash-2"] = "rbxassetid://10709805449",
-    ["delete"] = "rbxassetid://10734983637",
     ["copy"] = "rbxassetid://10709793917",
-    ["clipboard"] = "rbxassetid://10709792158",
-    ["download"] = "rbxassetid://10709794964",
-    ["upload"] = "rbxassetid://10709805917",
-
-    -- Users & Social
     ["user"] = "rbxassetid://10734988677",
-    ["user-check"] = "rbxassetid://10709806034",
-    ["user-plus"] = "rbxassetid://10709806268",
-    ["user-minus"] = "rbxassetid://10709806151",
-    ["user-x"] = "rbxassetid://10709806385",
     ["users"] = "rbxassetid://10734989047",
-    ["player"] = "rbxassetid://10734988677",
-    ["players"] = "rbxassetid://10734989047",
-    ["team"] = "rbxassetid://10734989047",
-    ["group"] = "rbxassetid://10734989047",
-
-    -- Media & Playback
     ["play"] = "rbxassetid://10709801822",
     ["pause"] = "rbxassetid://10709801588",
-    ["volume"] = "rbxassetid://10709806736",
-    ["volume-1"] = "rbxassetid://10709806853",
-    ["volume-2"] = "rbxassetid://10709806970",
-    ["volume-x"] = "rbxassetid://10709807087",
-    ["music"] = "rbxassetid://10709801120",
-    ["video"] = "rbxassetid://10709806502",
-    ["camera"] = "rbxassetid://10709789686",
-    ["mic"] = "rbxassetid://10709800067",
-    ["mic-off"] = "rbxassetid://10709800184",
-
-    -- Status & Alerts
     ["info"] = "rbxassetid://10709797960",
     ["alert-triangle"] = "rbxassetid://10709753149",
-    ["warning"] = "rbxassetid://10709753149",
-    ["warn"] = "rbxassetid://10709753149",
     ["alert-circle"] = "rbxassetid://10709752996",
-    ["danger"] = "rbxassetid://10709752996",
-    ["error"] = "rbxassetid://10709752996",
-    ["help-circle"] = "rbxassetid://10709797430",
-    ["question"] = "rbxassetid://10709797430",
-    ["help"] = "rbxassetid://10709797430",
-
-    -- Utilities & Misc
     ["lock"] = "rbxassetid://10709798779",
     ["unlock"] = "rbxassetid://10734987768",
     ["key"] = "rbxassetid://10709798082",
-    ["wrench"] = "rbxassetid://10734990924",
-    ["tool"] = "rbxassetid://10734990924",
-    ["tools"] = "rbxassetid://10734990924",
-    ["rocket"] = "rbxassetid://10709802524",
-    ["globe"] = "rbxassetid://10709796727",
     ["sun"] = "rbxassetid://10734975252",
     ["moon"] = "rbxassetid://10709800652",
-    ["compass"] = "rbxassetid://10709793737",
-    ["navigation"] = "rbxassetid://10709801237",
-    ["map"] = "rbxassetid://10709799248",
-    ["map-pin"] = "rbxassetid://10709799365",
-    ["hash"] = "rbxassetid://10709797086",
-    ["tag"] = "rbxassetid://10709804864",
-    ["external-link"] = "rbxassetid://10709795324",
-    ["link"] = "rbxassetid://10709798544",
-    ["gift"] = "rbxassetid://10709796614",
-    ["book"] = "rbxassetid://10709781824",
-    ["book-open"] = "rbxassetid://10709781717",
-    ["clock"] = "rbxassetid://10709792629",
-    ["time"] = "rbxassetid://10709792629",
-    ["timer"] = "rbxassetid://10709792629",
-    ["power"] = "rbxassetid://10709802056",
-    ["wifi"] = "rbxassetid://10709807204",
-    ["wifi-off"] = "rbxassetid://10709807321",
-    ["bluetooth"] = "rbxassetid://10709776655",
-    ["message-circle"] = "rbxassetid://10709799833",
-    ["message-square"] = "rbxassetid://10709799950",
-    ["chat"] = "rbxassetid://10709799950",
-    ["coins"] = "rbxassetid://10709770178",
-    ["dollar-sign"] = "rbxassetid://10709794833",
-    ["credit-card"] = "rbxassetid://10709794247",
-    ["edit"] = "rbxassetid://10709795100",
-    ["edit-2"] = "rbxassetid://10709795032",
-    ["edit-3"] = "rbxassetid://10709795175",
     ["maximize"] = "rbxassetid://9886659406",
     ["menu"] = "rbxassetid://10709799716",
-    ["more-horizontal"] = "rbxassetid://10709800769",
-    ["more-vertical"] = "rbxassetid://10709800886",
-    ["minus"] = "rbxassetid://10709800535",
-    ["plus"] = "rbxassetid://10709801939",
-    ["package"] = "rbxassetid://10709801354",
-    ["send"] = "rbxassetid://10709802992",
-    ["shopping-bag"] = "rbxassetid://10709803694",
-    ["shopping-cart"] = "rbxassetid://10709803811",
-    ["shuffle"] = "rbxassetid://10709803928",
-    ["smartphone"] = "rbxassetid://10709804045",
-    ["smile"] = "rbxassetid://10709804162",
-    ["speaker"] = "rbxassetid://10709804279",
-    ["square"] = "rbxassetid://10709804396",
-    ["circle"] = "rbxassetid://10709791873",
-    ["circle-dot"] = "rbxassetid://10709791873",
-    ["table"] = "rbxassetid://10709804630",
-    ["tablet"] = "rbxassetid://10709804747",
-    ["thumbs-up"] = "rbxassetid://10709805098",
-    ["thumbs-down"] = "rbxassetid://10709804981",
-    ["toggle-left"] = "rbxassetid://10709805215",
-    ["toggle-right"] = "rbxassetid://10709805332",
-    ["trending-up"] = "rbxassetid://10709805683",
-    ["trending-down"] = "rbxassetid://10709805566",
-    ["tv"] = "rbxassetid://10709805800",
-    ["zoom-in"] = "rbxassetid://10709807906",
-    ["zoom-out"] = "rbxassetid://10709808023",
+    ["search"] = "rbxassetid://10709802875",
 }
 
 local CommonAliases = {
     ["slider"] = "sliders",
-    ["control"] = "sliders",
-    ["swords"] = "sword",
-    ["close"] = "x",
-    ["cancel"] = "x",
-    ["minimize"] = "chevron-up",
-    ["min"] = "chevron-up",
-    ["maximize"] = "maximize",
+    ["controls"] = "sliders",
     ["gear"] = "settings",
     ["cog"] = "settings",
     ["warn"] = "alert-triangle",
-    ["warning"] = "alert-triangle",
     ["danger"] = "alert-circle",
     ["error"] = "alert-circle",
     ["hp"] = "heart",
     ["health"] = "heart",
-    ["boxes"] = "box",
     ["cube"] = "box",
     ["fire"] = "flame",
     ["lightning"] = "zap",
-    ["pointer"] = "mouse-pointer",
 }
 
 local IconEngine = {
-    DefaultType = "lucide",
     Icons = BuiltinIcons,
 }
-
-function IconEngine.SetIconsType(iconType)
-    IconEngine.DefaultType = iconType and iconType:lower() or "lucide"
-end
-
-function IconEngine.PreloadAsync(setName) end
-function IconEngine.LoadSet(setName) return BuiltinIcons end
 
 function IconEngine.GetIcon(iconQuery)
     if not iconQuery or iconQuery == "" then return BuiltinIcons["sparkles"] end
@@ -616,14 +474,6 @@ function IconEngine.GetIcon(iconQuery)
         iconName = parts[2] or parts[1]
     elseif iconQuery:find("^lucide%-") then
         iconName = iconQuery:gsub("^lucide%-", "")
-    elseif iconQuery:find("^solar%-") then
-        iconName = iconQuery:gsub("^solar%-", "")
-    elseif iconQuery:find("^craft%-") then
-        iconName = iconQuery:gsub("^craft%-", "")
-    elseif iconQuery:find("^geist%-") then
-        iconName = iconQuery:gsub("^geist%-", "")
-    elseif iconQuery:find("^sfsymbols%-") then
-        iconName = iconQuery:gsub("^sfsymbols%-", "")
     end
 
     local cleanName = iconName:lower():gsub("_", "-"):gsub("%s+", "-")
@@ -690,7 +540,193 @@ function IconEngine.ApplyDecal(imageLabel, rawQuery)
 end
 
 -- ==============================================================================
--- 5. CONFIG PERSISTENCE ENGINE
+-- 5. CREATOR & THEMETAG REGISTRY ENGINE (Fluent Methodology)
+-- ==============================================================================
+local Creator = {
+    Registry = {},
+    Signals = {},
+    ActiveTheme = Themes["Hoshi"],
+    ActiveThemeName = "Hoshi",
+}
+
+function Creator.GetSafeGuiParent()
+    local success, hui = pcall(function() return (gethui or get_hidden_ui)() end)
+    if success and hui then return hui end
+    local cSuccess, coregui = pcall(function() return CoreGui end)
+    if cSuccess and coregui then return coregui end
+    return LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui") or game:GetService("StarterGui")
+end
+
+function Creator.AddSignal(rbxSignal, fn)
+    local conn = rbxSignal:Connect(fn)
+    table.insert(Creator.Signals, conn)
+    return conn
+end
+
+function Creator.Disconnect()
+    for _, conn in ipairs(Creator.Signals) do
+        if typeof(conn) == "RBXScriptConnection" and conn.Connected then
+            conn:Disconnect()
+        elseif conn and conn.Disconnect then
+            conn:Disconnect()
+        end
+    end
+    Creator.Signals = {}
+end
+
+function Creator.GetThemeProperty(propKey)
+    if Creator.ActiveTheme and Creator.ActiveTheme[propKey] then
+        return Creator.ActiveTheme[propKey]
+    end
+    return Themes["Hoshi"][propKey]
+end
+
+function Creator.AddThemeObject(instance, themeTags)
+    Creator.Registry[instance] = themeTags
+    for prop, themeKey in pairs(themeTags) do
+        local val = Creator.GetThemeProperty(themeKey)
+        if val ~= nil then
+            pcall(function() instance[prop] = val end)
+        end
+    end
+    return instance
+end
+
+function Creator.UpdateTheme(newTheme, newThemeName)
+    if type(newTheme) == "string" then
+        newThemeName = newTheme
+        newTheme = Themes[newThemeName] or Themes["Hoshi"]
+    end
+    Creator.ActiveTheme = newTheme or Themes["Hoshi"]
+    Creator.ActiveThemeName = newThemeName or "Hoshi"
+
+    for inst, tags in pairs(Creator.Registry) do
+        if inst and inst.Parent then
+            for prop, themeKey in pairs(tags) do
+                local val = Creator.GetThemeProperty(themeKey)
+                if val ~= nil then
+                    pcall(function() inst[prop] = val end)
+                end
+            end
+        else
+            Creator.Registry[inst] = nil
+        end
+    end
+end
+
+function Creator.New(className, properties, children)
+    local instance = Instance.new(className)
+    properties = properties or {}
+    children = children or {}
+    local themeTags = properties.ThemeTag
+    properties.ThemeTag = nil
+
+    for prop, val in pairs(properties) do
+        pcall(function() instance[prop] = val end)
+    end
+    for _, child in ipairs(children) do
+        if typeof(child) == "Instance" then child.Parent = instance end
+    end
+    if themeTags and type(themeTags) == "table" then
+        Creator.AddThemeObject(instance, themeTags)
+    end
+    return instance
+end
+
+function Creator.AddCorner(instance, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = instance
+    return corner
+end
+
+function Creator.AddStroke(instance, colorKeyOrColor, thickness, transparency)
+    local stroke = Instance.new("UIStroke")
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Thickness = thickness or 1
+    stroke.Transparency = transparency or 0
+    if type(colorKeyOrColor) == "string" then
+        Creator.AddThemeObject(stroke, { Color = colorKeyOrColor })
+    elseif typeof(colorKeyOrColor) == "Color3" then
+        stroke.Color = colorKeyOrColor
+    else
+        stroke.Color = Creator.GetThemeProperty("Border")
+    end
+    stroke.Parent = instance
+    return stroke
+end
+
+function Creator.AddPadding(instance, top, bottom, left, right)
+    local pad = Instance.new("UIPadding")
+    pad.PaddingTop = UDim.new(0, top or 0)
+    pad.PaddingBottom = UDim.new(0, bottom or top or 0)
+    pad.PaddingLeft = UDim.new(0, left or top or 0)
+    pad.PaddingRight = UDim.new(0, right or left or top or 0)
+    pad.Parent = instance
+    return pad
+end
+
+function Creator.Tween(instance, properties, duration, style, direction)
+    if not instance then return nil end
+    local tweenInfo = TweenInfo.new(
+        duration or 0.2,
+        style or Enum.EasingStyle.Quad,
+        direction or Enum.EasingDirection.Out
+    )
+    local anim = TweenService:Create(instance, tweenInfo, properties)
+    anim:Play()
+    return anim
+end
+
+function Creator.SpringMotor(initialValue, instance, propertyName, frequency)
+    local motor = Flipper.SingleMotor.new(initialValue)
+    motor:onStep(function(val)
+        if instance and instance.Parent then
+            pcall(function() instance[propertyName] = val end)
+        end
+    end)
+    local setGoal = function(target)
+        motor:setGoal(Flipper.Spring.new(target, { frequency = frequency or 7 }))
+    end
+    return motor, setGoal
+end
+
+function Creator.MakeDraggable(dragBar, mainFrame)
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    Creator.AddSignal(dragBar.InputBegan, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+
+    Creator.AddSignal(dragBar.InputChanged, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    Creator.AddSignal(UserInputService.InputChanged, function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- ==============================================================================
+-- 6. CONFIG PERSISTENCE ENGINE
 -- ==============================================================================
 local ConfigManager = {
     Folder = "HoshiHub",
@@ -707,9 +743,7 @@ function ConfigManager:Init(folderName, fileName, autoSave)
     if makefolder and isfolder and not isfolder(self.Folder) then
         pcall(makefolder, self.Folder)
     end
-    if self.AutoSave then
-        self:Load()
-    end
+    if self.AutoSave then self:Load() end
 end
 
 function ConfigManager:Set(flag, value)
@@ -767,172 +801,30 @@ function ConfigManager:Load()
 end
 
 function ConfigManager:Export()
-    local success, json = pcall(function() return HttpService:JSONEncode(self.Flags) end)
-    return success and json or "{}"
-end
-
--- ==============================================================================
--- 6. CREATOR ENGINE FACTORY
--- ==============================================================================
-local Creator = {
-    ThemeTags = {},
-    Signals = {},
-    ActiveTheme = nil,
-    ActiveThemeName = "Dark",
-}
-
-function Creator.GetSafeGuiParent()
-    local success, hui = pcall(function() return (gethui or get_hidden_ui)() end)
-    if success and hui then return hui end
-    local cSuccess, coregui = pcall(function() return CoreGui end)
-    if cSuccess and coregui then return coregui end
-    return LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui") or game:GetService("StarterGui")
-end
-
-function Creator.New(className, properties, children)
-    local instance = Instance.new(className)
-    properties = properties or {}
-    children = children or {}
-    local themeTag = properties.ThemeTag
-    properties.ThemeTag = nil
-
-    for prop, val in pairs(properties) do
-        pcall(function() instance[prop] = val end)
-    end
-    for _, child in ipairs(children) do
-        if typeof(child) == "Instance" then child.Parent = instance end
-    end
-    if themeTag and type(themeTag) == "table" then
-        Creator.ThemeTags[instance] = themeTag
-        if Creator.ActiveTheme then
-            Creator.ApplyThemeTag(instance, themeTag, Creator.ActiveTheme)
-        end
-    end
-    return instance
-end
-
-function Creator.AddCorner(instance, radius)
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, radius or 8)
-    corner.Parent = instance
-    return corner
-end
-
-function Creator.AddStroke(instance, color, thickness, transparency)
-    local stroke = Instance.new("UIStroke")
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.Color = color or Color3.fromRGB(40, 44, 58)
-    stroke.Thickness = thickness or 1
-    stroke.Transparency = transparency or 0
-    stroke.Parent = instance
-    return stroke
-end
-
-function Creator.AddPadding(instance, top, bottom, left, right)
-    local pad = Instance.new("UIPadding")
-    pad.PaddingTop = UDim.new(0, top or 0)
-    pad.PaddingBottom = UDim.new(0, bottom or top or 0)
-    pad.PaddingLeft = UDim.new(0, left or top or 0)
-    pad.PaddingRight = UDim.new(0, right or left or top or 0)
-    pad.Parent = instance
-    return pad
-end
-
-function Creator.Tween(instance, properties, duration, style, direction)
-    if not instance then return nil end
-    local tweenInfo = TweenInfo.new(
-        duration or 0.2,
-        style or Enum.EasingStyle.Quad,
-        direction or Enum.EasingDirection.Out
-    )
-    local anim = TweenService:Create(instance, tweenInfo, properties)
-    anim:Play()
-    return anim
-end
-
-function Creator.AddSignal(rbxSignal, fn)
-    local connection = rbxSignal:Connect(fn)
-    table.insert(Creator.Signals, connection)
-    return connection
-end
-
-function Creator.Disconnect()
-    for _, conn in ipairs(Creator.Signals) do
-        if typeof(conn) == "RBXScriptConnection" and conn.Connected then
-            conn:Disconnect()
-        elseif conn and conn.Disconnect then
-            conn:Disconnect()
-        end
-    end
-    Creator.Signals = {}
-end
-
-function Creator.MakeDraggable(dragBar, mainFrame)
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    Creator.AddSignal(dragBar.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    Creator.AddSignal(dragBar.InputChanged, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-
-    Creator.AddSignal(UserInputService.InputChanged, function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            mainFrame.Position = UDim2.new(
-                startPos.X.Scale,
-                startPos.X.Offset + delta.X,
-                startPos.Y.Scale,
-                startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-end
-
-function Creator.ApplyThemeTag(instance, themeTag, theme)
-    for prop, themeKey in pairs(themeTag) do
-        if theme[themeKey] then
-            pcall(function() instance[prop] = theme[themeKey] end)
-        end
-    end
-end
-
-function Creator.UpdateTheme(newTheme, newThemeName)
-    Creator.ActiveTheme = newTheme
-    Creator.ActiveThemeName = newThemeName
-    for inst, tag in pairs(Creator.ThemeTags) do
-        if inst and inst.Parent then
-            Creator.ApplyThemeTag(inst, tag, newTheme)
+    local data = {}
+    for k, v in pairs(self.Flags) do
+        if typeof(v) == "Color3" then
+            data[k] = { __type = "Color3", r = v.R, g = v.G, b = v.B }
+        elseif typeof(v) == "EnumItem" then
+            data[k] = { __type = "EnumItem", enum = tostring(v.EnumType), name = v.Name }
         else
-            Creator.ThemeTags[inst] = nil
+            data[k] = v
         end
     end
+    local success, json = pcall(function() return HttpService:JSONEncode(data) end)
+    return (success and json) or "{}"
 end
 
 -- ==============================================================================
--- 7. NOTIFICATION MANAGER
+-- 7. NOTIFICATION SYSTEM
 -- ==============================================================================
 local NotificationManager = {}
 
 function NotificationManager.Init(screenGui)
     local holder = Creator.New("Frame", {
         Name = "NotificationHolder",
-        Size = UDim2.new(0, 300, 1, -40),
-        Position = UDim2.new(1, -320, 0, 20),
+        Size = UDim2.new(0, 310, 1, -40),
+        Position = UDim2.new(1, -330, 0, 20),
         BackgroundTransparency = 1,
         Parent = screenGui
     })
@@ -953,8 +845,6 @@ function NotificationManager.Notify(holder, notifConfig, theme)
     local notifType = notifConfig.Type or "Info"
     local duration = notifConfig.Duration or 3.5
     local rawIcon = notifConfig.Icon or "bell"
-    local icon = IconEngine.GetIcon(rawIcon)
-    local isCustomNotif = (type(rawIcon) == "number" or tonumber(rawIcon) or tostring(rawIcon):find("^rbxthumb://") or (tostring(rawIcon):find("^rbxassetid://") and tonumber(tostring(rawIcon):sub(14)))) ~= nil
 
     local typeColor = theme.Accent
     if notifType == "Success" then typeColor = theme.Success
@@ -966,10 +856,11 @@ function NotificationManager.Notify(holder, notifConfig, theme)
         Size = UDim2.new(1, 0, 0, 0),
         BackgroundColor3 = theme.CardBackground,
         ClipsDescendants = true,
-        Parent = holder
+        Parent = holder,
+        ThemeTag = { BackgroundColor3 = "CardBackground" }
     })
     Creator.AddCorner(notifFrame, 8)
-    Creator.AddStroke(notifFrame, theme.Border, 1)
+    Creator.AddStroke(notifFrame, "Border", 1)
 
     Creator.New("Frame", {
         Name = "SideBar",
@@ -978,18 +869,22 @@ function NotificationManager.Notify(holder, notifConfig, theme)
         Parent = notifFrame
     })
 
+    local isCustomDecal = type(rawIcon) == "number" or tonumber(rawIcon) ~= nil or tostring(rawIcon):find("^rbxthumb://") or tostring(rawIcon):find("%d%d%d%d%d%d")
+
     local notifIco = Creator.New("ImageLabel", {
         Name = "Icon",
         Size = UDim2.new(0, 18, 0, 18),
         Position = UDim2.new(0, 12, 0, 12),
         BackgroundTransparency = 1,
-        Image = icon,
-        ImageColor3 = isCustomNotif and Color3.fromRGB(255, 255, 255) or typeColor,
+        ImageColor3 = isCustomDecal and Color3.fromRGB(255, 255, 255) or typeColor,
         ScaleType = Enum.ScaleType.Fit,
         Parent = notifFrame
     })
-    if isCustomNotif then
+    if isCustomDecal then
         Creator.AddCorner(notifIco, 4)
+        IconEngine.ApplyDecal(notifIco, rawIcon)
+    else
+        notifIco.Image = IconEngine.GetIcon(rawIcon)
     end
 
     Creator.New("TextLabel", {
@@ -1003,6 +898,7 @@ function NotificationManager.Notify(holder, notifConfig, theme)
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextTruncate = Enum.TextTruncate.AtEnd,
+        ThemeTag = { TextColor3 = "Text" },
         Parent = notifFrame
     })
 
@@ -1018,6 +914,7 @@ function NotificationManager.Notify(holder, notifConfig, theme)
         TextXAlignment = Enum.TextXAlignment.Left,
         TextWrapped = true,
         AutomaticSize = Enum.AutomaticSize.Y,
+        ThemeTag = { TextColor3 = "SubText" },
         Parent = notifFrame
     })
 
@@ -1045,7 +942,7 @@ function NotificationManager.Notify(holder, notifConfig, theme)
 end
 
 -- ==============================================================================
--- 8. DIALOG MODAL COMPONENT (Adaptive Button Grid & Text Fitting)
+-- 8. DIALOG MODAL SYSTEM (Fluent Responsive Scale)
 -- ==============================================================================
 local DialogManager = {}
 
@@ -1067,7 +964,7 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         Parent = screenGui
     })
 
-    local dialogWidth = math.clamp(numButtons * 80 + 40, 360, 520)
+    local dialogWidth = math.clamp(numButtons * 85 + 40, 360, 520)
     local dialogBox = Creator.New("Frame", {
         Name = "DialogBox",
         Size = UDim2.new(0, dialogWidth, 0, 175),
@@ -1075,10 +972,11 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = theme.CardBackground,
         ZIndex = 101,
+        ThemeTag = { BackgroundColor3 = "CardBackground" },
         Parent = modalOverlay
     })
     Creator.AddCorner(dialogBox, 10)
-    Creator.AddStroke(dialogBox, theme.Border, 1)
+    Creator.AddStroke(dialogBox, "Border", 1)
 
     local dScale = Creator.New("UIScale", { Scale = 0.85, Parent = dialogBox })
 
@@ -1093,6 +991,7 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 102,
+        ThemeTag = { TextColor3 = "Text" },
         Parent = dialogBox
     })
 
@@ -1108,6 +1007,7 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         TextXAlignment = Enum.TextXAlignment.Left,
         TextWrapped = true,
         ZIndex = 102,
+        ThemeTag = { TextColor3 = "SubText" },
         Parent = dialogBox
     })
 
@@ -1142,23 +1042,24 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
 
     for idx, btnData in ipairs(buttons) do
         local bVariant = btnData.Variant or "Secondary"
-        local bBg = theme.Background
-        local bText = theme.Text
-        if bVariant == "Primary" then bBg = theme.Accent bText = Color3.fromRGB(255, 255, 255)
-        elseif bVariant == "Danger" then bBg = theme.Danger bText = Color3.fromRGB(255, 255, 255) end
+        local bBgKey = "Background"
+        local bTextKey = "Text"
+        if bVariant == "Primary" then bBgKey = "Accent" bTextKey = "Background"
+        elseif bVariant == "Danger" then bBgKey = "Danger" bTextKey = "Text" end
 
         local dBtn = Creator.New("TextButton", {
             Name = "Btn_" .. idx .. "_" .. (btnData.Text or "Action"),
             Size = UDim2.new(btnWidthScale, -btnOffsetGap, 1, 0),
-            BackgroundColor3 = bBg,
+            BackgroundColor3 = Creator.GetThemeProperty(bBgKey),
             AutoButtonColor = false,
             Text = btnData.Text or "Action",
-            TextColor3 = bText,
+            TextColor3 = Creator.GetThemeProperty(bTextKey),
             TextSize = 12,
             Font = Enum.Font.GothamBold,
             TextTruncate = Enum.TextTruncate.AtEnd,
             LayoutOrder = idx,
             ZIndex = 103,
+            ThemeTag = { BackgroundColor3 = bBgKey, TextColor3 = bTextKey },
             Parent = btnContainer
         })
         Creator.AddCorner(dBtn, 6)
@@ -1173,10 +1074,10 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
 end
 
 -- ==============================================================================
--- 9. MAIN WINDOW COMPONENT FACTORY (Resizable & Dynamic Scaling)
+-- 9. MAIN WINDOW COMPONENT FACTORY (Fluent Standard Architecture)
 -- ==============================================================================
 local HoshiUI = {
-    Version = "2.0.0",
+    Version = "2.2.0",
     Windows = {},
     Icons = IconEngine,
     Themes = Themes,
@@ -1186,9 +1087,9 @@ function HoshiUI:CreateWindow(config)
     config = config or {}
     local windowTitle = config.Title or "Hoshi Hub"
     local windowSubTitle = config.SubTitle or "v2.0"
-    local themeName = config.Theme or "Dark"
+    local themeName = config.Theme or "Hoshi"
     local toggleKey = config.ToggleKey or Enum.KeyCode.RightControl
-    local hasFloating = config.FloatingButton or false
+    local hasFloating = (config.FloatingButton ~= false)
     local configFolder = config.Folder or "HoshiHub"
     local configFile = config.ConfigFile or "Config.json"
     local autoSave = (config.AutoSave ~= false)
@@ -1204,10 +1105,9 @@ function HoshiUI:CreateWindow(config)
     local existingGui = safeParent:FindFirstChild("HoshiUI_Root")
     if existingGui then pcall(existingGui.Destroy, existingGui) end
 
-    local defaultThemeName = config.Theme or "Hoshi"
-    local theme = Themes[defaultThemeName] or Themes["Hoshi"] or Themes["Dark"]
+    local theme = Themes[themeName] or Themes["Hoshi"] or Themes["Dark"]
     Creator.ActiveTheme = theme
-    Creator.ActiveThemeName = defaultThemeName
+    Creator.ActiveThemeName = themeName
 
     local viewport = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
     local defaultW = math.min(config.Size and config.Size.X.Offset or 680, viewport.X - 24)
@@ -1232,10 +1132,11 @@ function HoshiUI:CreateWindow(config)
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = theme.Background,
         ClipsDescendants = false,
+        ThemeTag = { BackgroundColor3 = "Background" },
         Parent = screenGui
     })
     Creator.AddCorner(mainFrame, 12)
-    local mainStroke = Creator.AddStroke(mainFrame, theme.Border, 1)
+    local mainStroke = Creator.AddStroke(mainFrame, "Border", 1)
 
     local uiScale = Creator.New("UIScale", { Scale = initialScale, Parent = mainFrame })
 
@@ -1256,7 +1157,6 @@ function HoshiUI:CreateWindow(config)
     local topBar = Creator.New("Frame", {
         Name = "TopBar",
         Size = UDim2.new(1, 0, 0, 48),
-        BackgroundColor3 = theme.Background,
         BackgroundTransparency = 1,
         Parent = mainFrame
     })
@@ -1271,6 +1171,7 @@ function HoshiUI:CreateWindow(config)
         BackgroundTransparency = 1,
         ImageColor3 = isHeaderCustomAsset and Color3.fromRGB(255, 255, 255) or theme.Accent,
         ScaleType = Enum.ScaleType.Fit,
+        ThemeTag = isHeaderCustomAsset and nil or { ImageColor3 = "Accent" },
         Parent = topBar
     })
     if isHeaderCustomAsset then
@@ -1282,7 +1183,7 @@ function HoshiUI:CreateWindow(config)
 
     local titleContainer = Creator.New("Frame", {
         Name = "TitleContainer",
-        Size = UDim2.new(0, 300, 1, 0),
+        Size = UDim2.new(0, 320, 1, 0),
         Position = UDim2.new(0, 44, 0, 0),
         BackgroundTransparency = 1,
         Parent = topBar
@@ -1298,6 +1199,7 @@ function HoshiUI:CreateWindow(config)
         TextSize = 14,
         Font = Enum.Font.GothamBold,
         TextXAlignment = Enum.TextXAlignment.Left,
+        ThemeTag = { TextColor3 = "Text" },
         Parent = titleContainer
     })
 
@@ -1311,6 +1213,7 @@ function HoshiUI:CreateWindow(config)
         TextSize = 10,
         Font = Enum.Font.GothamMedium,
         TextXAlignment = Enum.TextXAlignment.Left,
+        ThemeTag = { TextColor3 = "SubText" },
         Parent = titleContainer
     })
 
@@ -1330,17 +1233,18 @@ function HoshiUI:CreateWindow(config)
         Parent = actionsContainer
     })
 
-    local function createTopBarButton(name, iconId, hoverColor, layoutOrder, onClick)
+    local function createTopBarButton(name, iconId, layoutOrder, onClick)
         local btn = Creator.New("ImageButton", {
             Name = name,
             Size = UDim2.new(0, 28, 0, 28),
             BackgroundColor3 = theme.CardBackground,
             AutoButtonColor = false,
             LayoutOrder = layoutOrder or 1,
+            ThemeTag = { BackgroundColor3 = "CardBackground" },
             Parent = actionsContainer
         })
         Creator.AddCorner(btn, 6)
-        Creator.AddStroke(btn, theme.Border, 1)
+        Creator.AddStroke(btn, "Border", 1)
 
         local ico = Creator.New("ImageLabel", {
             Name = "Icon",
@@ -1349,16 +1253,17 @@ function HoshiUI:CreateWindow(config)
             BackgroundTransparency = 1,
             Image = IconEngine.GetIcon(iconId) or iconId,
             ImageColor3 = theme.SubText,
+            ThemeTag = { ImageColor3 = "SubText" },
             Parent = btn
         })
 
         btn.MouseEnter:Connect(function()
-            Creator.Tween(btn, { BackgroundColor3 = hoverColor or theme.CardHover }, 0.15)
-            Creator.Tween(ico, { ImageColor3 = theme.Text }, 0.15)
+            Creator.Tween(btn, { BackgroundColor3 = Creator.GetThemeProperty("CardHover") }, 0.15)
+            Creator.Tween(ico, { ImageColor3 = Creator.GetThemeProperty("Text") }, 0.15)
         end)
         btn.MouseLeave:Connect(function()
-            Creator.Tween(btn, { BackgroundColor3 = theme.CardBackground }, 0.15)
-            Creator.Tween(ico, { ImageColor3 = theme.SubText }, 0.15)
+            Creator.Tween(btn, { BackgroundColor3 = Creator.GetThemeProperty("CardBackground") }, 0.15)
+            Creator.Tween(ico, { ImageColor3 = Creator.GetThemeProperty("SubText") }, 0.15)
         end)
         btn.MouseButton1Click:Connect(onClick)
         return btn
@@ -1384,8 +1289,7 @@ function HoshiUI:CreateWindow(config)
         end
     end
 
-    -- Topbar Buttons (Minimize layoutOrder 1 = Left, Close layoutOrder 2 = Right)
-    createTopBarButton("Minimize", "chevron-up", theme.CardHover, 1, function()
+    createTopBarButton("Minimize", "chevron-up", 1, function()
         isMinimized = not isMinimized
         if isMinimized then
             Creator.Tween(mainFrame, { Size = UDim2.new(0, mainFrame.AbsoluteSize.X, 0, 48) }, 0.22)
@@ -1394,7 +1298,7 @@ function HoshiUI:CreateWindow(config)
         end
     end)
 
-    createTopBarButton("Close", "x", Color3.fromRGB(180, 40, 50), 2, function()
+    createTopBarButton("Close", "x", 2, function()
         toggleWindow(false)
     end)
 
@@ -1413,10 +1317,32 @@ function HoshiUI:CreateWindow(config)
         Name = "Sidebar",
         Size = UDim2.new(0, 175, 1, 0),
         BackgroundColor3 = theme.Sidebar,
+        ThemeTag = { BackgroundColor3 = "Sidebar" },
         Parent = body
     })
     Creator.AddCorner(sidebar, 8)
-    Creator.AddStroke(sidebar, theme.Border, 1)
+    Creator.AddStroke(sidebar, "Border", 1)
+
+    -- Fluent Sliding Tab Indicator Pill
+    local tabIndicator = Creator.New("Frame", {
+        Name = "TabIndicator",
+        Size = UDim2.new(0, 3, 0, 18),
+        Position = UDim2.new(0, 4, 0, 8),
+        BackgroundColor3 = theme.Accent,
+        ThemeTag = { BackgroundColor3 = "Accent" },
+        Parent = sidebar
+    })
+    Creator.AddCorner(tabIndicator, 2)
+
+    local selectorPosMotor = Flipper.SingleMotor.new(8)
+    local selectorSizeMotor = Flipper.SingleMotor.new(18)
+
+    selectorPosMotor:onStep(function(val)
+        tabIndicator.Position = UDim2.new(0, 4, 0, val)
+    end)
+    selectorSizeMotor:onStep(function(val)
+        tabIndicator.Size = UDim2.new(0, 3, 0, val)
+    end)
 
     local tabListScroll = Creator.New("ScrollingFrame", {
         Name = "TabList",
@@ -1426,10 +1352,11 @@ function HoshiUI:CreateWindow(config)
         ScrollBarImageColor3 = theme.Border,
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ThemeTag = { ScrollBarImageColor3 = "Border" },
         Parent = sidebar
     })
     Creator.AddPadding(tabListScroll, 8, 8, 8, 8)
-    Creator.New("UIListLayout", {
+    local tabLayout = Creator.New("UIListLayout", {
         SortOrder = Enum.SortOrder.LayoutOrder,
         Padding = UDim.new(0, 4),
         Parent = tabListScroll
@@ -1439,12 +1366,11 @@ function HoshiUI:CreateWindow(config)
         Name = "ContentArea",
         Size = UDim2.new(1, -183, 1, 0),
         Position = UDim2.new(0, 183, 0, 0),
-        BackgroundColor3 = theme.Background,
         BackgroundTransparency = 1,
         Parent = body
     })
 
-    -- Interactive Resize Handle (Bottom-Right Drag Grip)
+    -- Interactive Corner Resize Handle (Flipper Spring GroupMotor)
     if isResizable then
         local resizeHandle = Creator.New("ImageButton", {
             Name = "ResizeHandle",
@@ -1465,6 +1391,7 @@ function HoshiUI:CreateWindow(config)
             ImageColor3 = theme.SubText,
             ImageTransparency = 0.4,
             Rotation = 45,
+            ThemeTag = { ImageColor3 = "SubText" },
             Parent = resizeHandle
         })
 
@@ -1477,9 +1404,7 @@ function HoshiUI:CreateWindow(config)
                 resizeStartMouse = input.Position
                 initialFrameSize = mainFrame.AbsoluteSize
                 input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then
-                        isResizing = false
-                    end
+                    if input.UserInputState == Enum.UserInputState.End then isResizing = false end
                 end)
             end
         end)
@@ -1507,6 +1432,7 @@ function HoshiUI:CreateWindow(config)
         end)
     end
 
+    -- Floating Action Toggle Button
     local floatingBtn = nil
     if hasFloating then
         local rawFloatIcon = config.FloatingIcon or config.Icon or "95445676600352"
@@ -1519,10 +1445,11 @@ function HoshiUI:CreateWindow(config)
             BackgroundColor3 = theme.Background,
             AutoButtonColor = false,
             ZIndex = 50,
+            ThemeTag = { BackgroundColor3 = "Background" },
             Parent = screenGui
         })
         Creator.AddCorner(floatingBtn, 12)
-        local floatStroke = Creator.AddStroke(floatingBtn, theme.Accent, 1.5)
+        local floatStroke = Creator.AddStroke(floatingBtn, "Accent", 1.5)
 
         Creator.New("ImageLabel", {
             Name = "Shadow",
@@ -1546,6 +1473,7 @@ function HoshiUI:CreateWindow(config)
             ImageColor3 = isFloatCustomAsset and Color3.fromRGB(255, 255, 255) or theme.Accent,
             ScaleType = Enum.ScaleType.Fit,
             ZIndex = 51,
+            ThemeTag = isFloatCustomAsset and nil or { ImageColor3 = "Accent" },
             Parent = floatingBtn
         })
         if isFloatCustomAsset then
@@ -1557,11 +1485,11 @@ function HoshiUI:CreateWindow(config)
 
         floatingBtn.MouseEnter:Connect(function()
             Creator.Tween(floatingBtn, { Size = UDim2.new(0, 52, 0, 52), Position = UDim2.new(0, 22, 0.5, -26) }, 0.18, Enum.EasingStyle.Back)
-            Creator.Tween(floatStroke, { Color = theme.AccentHover, Thickness = 2 }, 0.18)
+            Creator.Tween(floatStroke, { Color = Creator.GetThemeProperty("AccentHover"), Thickness = 2 }, 0.18)
         end)
         floatingBtn.MouseLeave:Connect(function()
             Creator.Tween(floatingBtn, { Size = UDim2.new(0, 48, 0, 48), Position = UDim2.new(0, 24, 0.5, -24) }, 0.18, Enum.EasingStyle.Back)
-            Creator.Tween(floatStroke, { Color = theme.Accent, Thickness = 1.5 }, 0.18)
+            Creator.Tween(floatStroke, { Color = Creator.GetThemeProperty("Accent"), Thickness = 1.5 }, 0.18)
         end)
 
         Creator.MakeDraggable(floatingBtn, floatingBtn)
@@ -1578,10 +1506,11 @@ function HoshiUI:CreateWindow(config)
         MainFrame = mainFrame,
         Scale = uiScale,
         Tabs = {},
+        ActiveTab = nil,
         ConfigManager = ConfigManager,
         Themes = Themes,
         ActiveTheme = theme,
-        ActiveThemeName = defaultThemeName,
+        ActiveThemeName = themeName,
     }
 
     function Window:SetScale(scaleValue)
@@ -1589,40 +1518,38 @@ function HoshiUI:CreateWindow(config)
         Creator.Tween(uiScale, { Scale = initialScale }, 0.18)
     end
 
-    function Window:GetScale()
-        return uiScale.Scale
-    end
+    function Window:GetScale() return uiScale.Scale end
 
-    function Window:SetTheme(themeInput)
-        local targetTheme = Themes[themeInput]
-        local targetName = themeInput
-        if type(themeInput) == "table" then
-            targetTheme = themeInput
-            targetName = "Custom"
-        elseif not targetTheme then
-            targetTheme = Themes["Hoshi"] or Themes["Dark"]
-            targetName = "Hoshi"
-        end
-        Window.ActiveTheme = targetTheme
-        Window.ActiveThemeName = targetName
-        Creator.UpdateTheme(targetTheme, targetName)
-        mainFrame.BackgroundColor3 = targetTheme.Background
-        mainStroke.Color = targetTheme.Border
-        sidebar.BackgroundColor3 = targetTheme.Sidebar
+    function Window:SetTheme(targetTheme)
+        Creator.UpdateTheme(targetTheme)
     end
 
     function Window:SetFloatingVisible(visible)
-        if floatingBtn then
-            floatingBtn.Visible = (visible ~= false)
-        end
+        if floatingBtn then floatingBtn.Visible = (visible ~= false) end
+    end
+
+    function Window:Notify(notifConfig)
+        NotificationManager.Notify(notifHolder, notifConfig, Creator.ActiveTheme)
+    end
+
+    function Window:Dialog(dialogConfig)
+        DialogManager.Open(screenGui, dialogConfig, Creator.ActiveTheme)
+    end
+
+    function Window:Destroy()
+        Creator.Disconnect()
+        screenGui:Destroy()
     end
 
     if getgenv then getgenv().HoshiHub_ActiveWindow = Window end
 
+    -- ==============================================================================
+    -- TAB FACTORY (Fluent Sliding Indicator & Animated Page Container)
+    -- ==============================================================================
     function Window:CreateTab(tabConfig)
         tabConfig = tabConfig or {}
         local tabTitle = tabConfig.Title or "Tab"
-        local tabIcon = IconEngine.GetIcon(tabConfig.Icon or "folder")
+        local tabIconQuery = tabConfig.Icon or "folder"
 
         local tabBtn = Creator.New("TextButton", {
             Name = "TabBtn_" .. tabTitle,
@@ -1635,42 +1562,32 @@ function HoshiUI:CreateWindow(config)
         })
         Creator.AddCorner(tabBtn, 8)
 
-        local tabIconImg = Creator.New("ImageLabel", {
+        local tabIconLabel = Creator.New("ImageLabel", {
             Name = "Icon",
             Size = UDim2.new(0, 16, 0, 16),
-            Position = UDim2.new(0, 10, 0.5, -8),
+            Position = UDim2.new(0, 12, 0.5, -8),
             BackgroundTransparency = 1,
-            Image = tabIcon,
+            Image = IconEngine.GetIcon(tabIconQuery),
             ImageColor3 = theme.SubText,
+            ThemeTag = { ImageColor3 = "SubText" },
             Parent = tabBtn
         })
 
-        local tabLabel = Creator.New("TextLabel", {
+        local tabTextLabel = Creator.New("TextLabel", {
             Name = "Title",
-            Size = UDim2.new(1, -40, 1, 0),
-            Position = UDim2.new(0, 34, 0, 0),
+            Size = UDim2.new(1, -38, 1, 0),
+            Position = UDim2.new(0, 36, 0, 0),
             BackgroundTransparency = 1,
             Text = tabTitle,
             TextColor3 = theme.SubText,
-            TextSize = 12,
-            Font = Enum.Font.GothamBold,
+            TextSize = 13,
+            Font = Enum.Font.GothamMedium,
             TextXAlignment = Enum.TextXAlignment.Left,
-            TextTruncate = Enum.TextTruncate.AtEnd,
+            ThemeTag = { TextColor3 = "SubText" },
             Parent = tabBtn
         })
 
-        local activeBar = Creator.New("Frame", {
-            Name = "ActiveBar",
-            Size = UDim2.new(0, 3, 0, 16),
-            Position = UDim2.new(0, 0, 0.5, -8),
-            BackgroundColor3 = theme.Accent,
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            Parent = tabBtn
-        })
-        Creator.AddCorner(activeBar, 2)
-
-        local page = Creator.New("ScrollingFrame", {
+        local pageScroll = Creator.New("ScrollingFrame", {
             Name = "Page_" .. tabTitle,
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
@@ -1679,235 +1596,264 @@ function HoshiUI:CreateWindow(config)
             CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             Visible = false,
+            ThemeTag = { ScrollBarImageColor3 = "Border" },
             Parent = contentArea
         })
-        Creator.AddPadding(page, 12, 12, 12, 12)
+        Creator.AddPadding(pageScroll, 12, 16, 10, 14)
         Creator.New("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
             Padding = UDim.new(0, 8),
-            Parent = page
+            Parent = pageScroll
         })
 
-        local Tab = { Button = tabBtn, Page = page, Window = Window }
+        local Tab = {
+            Title = tabTitle,
+            Button = tabBtn,
+            Page = pageScroll,
+            Window = Window,
+        }
 
-        local function activateTab()
-            for _, otherTab in pairs(Window.Tabs) do
+        local function selectThisTab()
+            for _, otherTab in ipairs(Window.Tabs) do
                 otherTab.Page.Visible = false
-                Creator.Tween(otherTab.Button, { BackgroundTransparency = 1 }, 0.18)
-                local oIco = otherTab.Button:FindFirstChild("Icon")
-                if oIco then Creator.Tween(oIco, { ImageColor3 = theme.SubText }, 0.18) end
-                local oTitle = otherTab.Button:FindFirstChild("Title")
-                if oTitle then Creator.Tween(oTitle, { TextColor3 = theme.SubText }, 0.18) end
-                local oBar = otherTab.Button:FindFirstChild("ActiveBar")
-                if oBar then Creator.Tween(oBar, { BackgroundTransparency = 1 }, 0.18) end
+                Creator.Tween(otherTab.Button, { BackgroundTransparency = 1 }, 0.15)
+                Creator.Tween(otherTab.Button.Icon, { ImageColor3 = Creator.GetThemeProperty("SubText") }, 0.15)
+                Creator.Tween(otherTab.Button.Title, { TextColor3 = Creator.GetThemeProperty("SubText") }, 0.15)
             end
 
-            page.Visible = true
-            Creator.Tween(tabBtn, { BackgroundTransparency = 0.8 }, 0.18)
-            Creator.Tween(tabIconImg, { ImageColor3 = theme.Accent }, 0.18)
-            Creator.Tween(tabLabel, { TextColor3 = theme.Text }, 0.18)
-            Creator.Tween(activeBar, { BackgroundTransparency = 0 }, 0.18)
+            Window.ActiveTab = Tab
+            pageScroll.Visible = true
+
+            -- Fluent Spring Sliding Tab Indicator
+            local targetY = tabBtn.Position.Y.Offset + tabBtn.AbsolutePosition.Y - tabListScroll.AbsolutePosition.Y + 8
+            selectorPosMotor:setGoal(Flipper.Spring.new(targetY, { frequency = 8 }))
+            selectorSizeMotor:setGoal(Flipper.Spring.new(18, { frequency = 8 }))
+
+            Creator.Tween(tabBtn, { BackgroundTransparency = 0.85 }, 0.15)
+            Creator.Tween(tabIconLabel, { ImageColor3 = Creator.GetThemeProperty("Accent") }, 0.15)
+            Creator.Tween(tabTextLabel, { TextColor3 = Creator.GetThemeProperty("Text") }, 0.15)
         end
 
-        tabBtn.MouseButton1Click:Connect(activateTab)
+        tabBtn.MouseButton1Click:Connect(selectThisTab)
+        table.insert(Window.Tabs, Tab)
 
-        -- Element: Section
+        if #Window.Tabs == 1 then
+            task.spawn(selectThisTab)
+        end
+
+        -- ==============================================================================
+        -- UNIFIED ELEMENT FACTORIES (Buttons, Toggles, Sliders, Dropdowns, etc.)
+        -- ==============================================================================
+
         function Tab:CreateSection(title, desc)
-            local secFrame = Creator.New("Frame", {
-                Name = "Section_" .. (title or "Sec"),
+            local sectionHolder = Creator.New("Frame", {
+                Name = "Section_" .. title,
                 Size = UDim2.new(1, 0, 0, desc and 34 or 24),
                 BackgroundTransparency = 1,
-                Parent = page
+                Parent = pageScroll
             })
             Creator.New("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, 0, 0, 18),
+                Size = UDim2.new(1, 0, 0, 16),
                 BackgroundTransparency = 1,
-                Text = (title or "SECTION"):upper(),
-                TextColor3 = theme.Accent,
+                Text = title:upper(),
+                TextColor3 = Creator.GetThemeProperty("Accent"),
                 TextSize = 11,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = secFrame
+                ThemeTag = { TextColor3 = "Accent" },
+                Parent = sectionHolder
             })
-            if desc and desc ~= "" then
+            if desc then
                 Creator.New("TextLabel", {
                     Name = "Desc",
                     Size = UDim2.new(1, 0, 0, 14),
-                    Position = UDim2.new(0, 0, 0, 18),
+                    Position = UDim2.new(0, 0, 0, 16),
                     BackgroundTransparency = 1,
                     Text = desc,
-                    TextColor3 = theme.SubText,
+                    TextColor3 = Creator.GetThemeProperty("SubText"),
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    Parent = secFrame
+                    ThemeTag = { TextColor3 = "SubText" },
+                    Parent = sectionHolder
                 })
             end
-            return secFrame
+            return sectionHolder
         end
 
         function Tab:CreateDivider()
-            return Creator.New("Frame", {
+            local divider = Creator.New("Frame", {
                 Name = "Divider",
                 Size = UDim2.new(1, 0, 0, 1),
-                BackgroundColor3 = theme.Border,
-                BorderSizePixel = 0,
-                Parent = page
+                BackgroundColor3 = Creator.GetThemeProperty("Border"),
+                ThemeTag = { BackgroundColor3 = "Border" },
+                Parent = pageScroll
             })
+            return divider
         end
 
         function Tab:CreateParagraph(paraConfig)
             paraConfig = paraConfig or {}
-            local pTitle = paraConfig.Title or "Information"
+            local pTitle = paraConfig.Title or "Paragraph"
             local pContent = paraConfig.Content or ""
-            local pIcon = paraConfig.Icon and IconEngine.GetIcon(paraConfig.Icon) or IconEngine.GetIcon("info")
+            local pIcon = paraConfig.Icon and IconEngine.GetIcon(paraConfig.Icon)
 
-            local pCard = Creator.New("Frame", {
+            local card = Creator.New("Frame", {
                 Name = "Paragraph_" .. pTitle,
                 Size = UDim2.new(1, 0, 0, 0),
-                BackgroundColor3 = theme.CardBackground,
                 AutomaticSize = Enum.AutomaticSize.Y,
-                Parent = page
+                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                Parent = pageScroll
             })
-            Creator.AddCorner(pCard, 8)
-            Creator.AddStroke(pCard, theme.Border, 1)
-            Creator.AddPadding(pCard, 10, 10, 12, 12)
-            Creator.New("UIListLayout", { Padding = UDim.new(0, 4), Parent = pCard })
+            Creator.AddCorner(card, 8)
+            Creator.AddStroke(card, "Border", 1)
+            Creator.AddPadding(card, 10, 10, 12, 12)
 
-            local headerHolder = Creator.New("Frame", {
-                Name = "HeaderHolder",
-                Size = UDim2.new(1, 0, 0, 18),
-                BackgroundTransparency = 1,
-                Parent = pCard
-            })
-            Creator.New("ImageLabel", {
-                Name = "Icon",
-                Size = UDim2.new(0, 16, 0, 16),
-                Position = UDim2.new(0, 0, 0.5, -8),
-                BackgroundTransparency = 1,
-                Image = pIcon,
-                ImageColor3 = theme.Accent,
-                Parent = headerHolder
-            })
+            local headerOffset = 0
+            if pIcon then
+                headerOffset = 22
+                Creator.New("ImageLabel", {
+                    Name = "Icon",
+                    Size = UDim2.new(0, 16, 0, 16),
+                    Position = UDim2.new(0, 0, 0, 0),
+                    BackgroundTransparency = 1,
+                    Image = pIcon,
+                    ImageColor3 = Creator.GetThemeProperty("Accent"),
+                    ThemeTag = { ImageColor3 = "Accent" },
+                    Parent = card
+                })
+            end
+
             Creator.New("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -22, 1, 0),
-                Position = UDim2.new(0, 22, 0, 0),
+                Size = UDim2.new(1, -headerOffset, 0, 16),
+                Position = UDim2.new(0, headerOffset, 0, 0),
                 BackgroundTransparency = 1,
                 Text = pTitle,
-                TextColor3 = theme.Text,
-                TextSize = 12,
+                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = headerHolder
+                ThemeTag = { TextColor3 = "Text" },
+                Parent = card
             })
+
             Creator.New("TextLabel", {
                 Name = "Content",
                 Size = UDim2.new(1, 0, 0, 0),
+                Position = UDim2.new(0, 0, 0, 20),
                 BackgroundTransparency = 1,
                 Text = pContent,
-                TextColor3 = theme.SubText,
+                TextColor3 = Creator.GetThemeProperty("SubText"),
                 TextSize = 11,
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextWrapped = true,
                 AutomaticSize = Enum.AutomaticSize.Y,
-                Parent = pCard
+                ThemeTag = { TextColor3 = "SubText" },
+                Parent = card
             })
-            return pCard
+            return card
         end
 
-        -- Element: Button
         function Tab:CreateButton(btnConfig)
             btnConfig = btnConfig or {}
-            local bTitle = btnConfig.Title or "Button"
-            local bDesc = btnConfig.Desc or ""
-            local bIcon = btnConfig.Icon and IconEngine.GetIcon(btnConfig.Icon) or nil
-            local variant = btnConfig.Variant or "Secondary"
+            local title = btnConfig.Title or "Button"
+            local desc = btnConfig.Desc
+            local icon = btnConfig.Icon and IconEngine.GetIcon(btnConfig.Icon)
             local callback = btnConfig.Callback or function() end
 
-            local bgColor = theme.CardBackground
-            local hoverColor = theme.CardHover
-            local strokeColor = theme.Border
-            local textColor = theme.Text
-
-            if variant == "Primary" then
-                bgColor = theme.Accent hoverColor = theme.AccentHover strokeColor = theme.AccentHover textColor = Color3.fromRGB(255, 255, 255)
-            elseif variant == "Danger" then
-                bgColor = Color3.fromRGB(180, 40, 50) hoverColor = Color3.fromRGB(210, 50, 60) strokeColor = Color3.fromRGB(230, 60, 70) textColor = Color3.fromRGB(255, 255, 255)
-            end
-
-            local btnFrame = Creator.New("TextButton", {
-                Name = "Button_" .. bTitle,
-                Size = UDim2.new(1, 0, 0, bDesc ~= "" and 48 or 38),
-                BackgroundColor3 = bgColor,
+            local card = Creator.New("TextButton", {
+                Name = "Button_" .. title,
+                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
+                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
                 AutoButtonColor = false,
                 Text = "",
-                Parent = page
+                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                Parent = pageScroll
             })
-            Creator.AddCorner(btnFrame, 8)
-            Creator.AddStroke(btnFrame, strokeColor, 1)
+            Creator.AddCorner(card, 8)
+            local stroke = Creator.AddStroke(card, "Border", 1)
 
-            local offset = 12
-            if bIcon then
+            local offsetLeft = 12
+            if icon then
                 Creator.New("ImageLabel", {
                     Name = "Icon",
                     Size = UDim2.new(0, 18, 0, 18),
                     Position = UDim2.new(0, 12, 0.5, -9),
                     BackgroundTransparency = 1,
-                    Image = bIcon,
-                    ImageColor3 = textColor,
-                    Parent = btnFrame
+                    Image = icon,
+                    ImageColor3 = Creator.GetThemeProperty("Accent"),
+                    ThemeTag = { ImageColor3 = "Accent" },
+                    Parent = card
                 })
-                offset = 38
+                offsetLeft = 36
             end
 
-            local tLabel = Creator.New("TextLabel", {
+            Creator.New("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -offset - 12, 0, bDesc ~= "" and 20 or 38),
-                Position = UDim2.new(0, offset, 0, bDesc ~= "" and 6 or 0),
+                Size = UDim2.new(1, -offsetLeft - 30, 0, 16),
+                Position = UDim2.new(0, offsetLeft, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
-                Text = bTitle,
-                TextColor3 = textColor,
+                Text = title,
+                TextColor3 = Creator.GetThemeProperty("Text"),
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = btnFrame
+                ThemeTag = { TextColor3 = "Text" },
+                Parent = card
             })
-            if bDesc ~= "" then
+
+            if desc then
                 Creator.New("TextLabel", {
                     Name = "Desc",
-                    Size = UDim2.new(1, -offset - 12, 0, 16),
-                    Position = UDim2.new(0, offset, 0, 24),
+                    Size = UDim2.new(1, -offsetLeft - 30, 0, 14),
+                    Position = UDim2.new(0, offsetLeft, 0, 26),
                     BackgroundTransparency = 1,
-                    Text = bDesc,
-                    TextColor3 = variant == "Secondary" and theme.SubText or Color3.fromRGB(220, 220, 230),
-                    TextSize = 11,
+                    Text = desc,
+                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    Parent = btnFrame
+                    ThemeTag = { TextColor3 = "SubText" },
+                    Parent = card
                 })
             end
 
-            btnFrame.MouseEnter:Connect(function() Creator.Tween(btnFrame, { BackgroundColor3 = hoverColor }, 0.15) end)
-            btnFrame.MouseLeave:Connect(function() Creator.Tween(btnFrame, { BackgroundColor3 = bgColor }, 0.15) end)
-            btnFrame.MouseButton1Click:Connect(function() pcall(callback) end)
-            return {
-                Instance = btnFrame,
-                SetTitle = function(_, t) tLabel.Text = t end,
-                SetCallback = function(_, cb) callback = cb end
-            }
+            Creator.New("ImageLabel", {
+                Name = "Arrow",
+                Size = UDim2.new(0, 14, 0, 14),
+                Position = UDim2.new(1, -22, 0.5, -7),
+                BackgroundTransparency = 1,
+                Image = IconEngine.GetIcon("chevron-right"),
+                ImageColor3 = Creator.GetThemeProperty("SubText"),
+                ThemeTag = { ImageColor3 = "SubText" },
+                Parent = card
+            })
+
+            card.MouseEnter:Connect(function()
+                Creator.Tween(card, { BackgroundColor3 = Creator.GetThemeProperty("CardHover") }, 0.15)
+                Creator.Tween(stroke, { Color = Creator.GetThemeProperty("Accent") }, 0.15)
+            end)
+            card.MouseLeave:Connect(function()
+                Creator.Tween(card, { BackgroundColor3 = Creator.GetThemeProperty("CardBackground") }, 0.15)
+                Creator.Tween(stroke, { Color = Creator.GetThemeProperty("Border") }, 0.15)
+            end)
+            card.MouseButton1Click:Connect(function()
+                pcall(callback)
+            end)
+            return card
         end
 
-        -- Element: Toggle
         function Tab:CreateToggle(toggleConfig)
             toggleConfig = toggleConfig or {}
-            local tTitle = toggleConfig.Title or "Toggle"
-            local tDesc = toggleConfig.Desc or ""
+            local title = toggleConfig.Title or "Toggle"
+            local desc = toggleConfig.Desc
             local flag = toggleConfig.Flag
-            local default = toggleConfig.Default or false
             local callback = toggleConfig.Callback or function() end
+            local default = toggleConfig.Default or false
 
             if flag then
                 local saved = ConfigManager:Get(flag)
@@ -1915,92 +1861,110 @@ function HoshiUI:CreateWindow(config)
             end
 
             local state = default
-            local toggleCard = Creator.New("TextButton", {
-                Name = "Toggle_" .. tTitle,
-                Size = UDim2.new(1, 0, 0, tDesc ~= "" and 52 or 42),
-                BackgroundColor3 = theme.CardBackground,
+
+            local card = Creator.New("TextButton", {
+                Name = "Toggle_" .. title,
+                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
+                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
                 AutoButtonColor = false,
                 Text = "",
-                Parent = page
+                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                Parent = pageScroll
             })
-            Creator.AddCorner(toggleCard, 8)
-            Creator.AddStroke(toggleCard, theme.Border, 1)
+            Creator.AddCorner(card, 8)
+            local stroke = Creator.AddStroke(card, "Border", 1)
 
             Creator.New("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -70, 0, tDesc ~= "" and 20 or 42),
-                Position = UDim2.new(0, 14, 0, tDesc ~= "" and 8 or 0),
+                Size = UDim2.new(1, -70, 0, 16),
+                Position = UDim2.new(0, 12, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
-                Text = tTitle,
-                TextColor3 = theme.Text,
+                Text = title,
+                TextColor3 = Creator.GetThemeProperty("Text"),
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = toggleCard
+                ThemeTag = { TextColor3 = "Text" },
+                Parent = card
             })
-            if tDesc ~= "" then
+
+            if desc then
                 Creator.New("TextLabel", {
                     Name = "Desc",
-                    Size = UDim2.new(1, -70, 0, 16),
-                    Position = UDim2.new(0, 14, 0, 28),
+                    Size = UDim2.new(1, -70, 0, 14),
+                    Position = UDim2.new(0, 12, 0, 26),
                     BackgroundTransparency = 1,
-                    Text = tDesc,
-                    TextColor3 = theme.SubText,
-                    TextSize = 11,
+                    Text = desc,
+                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    Parent = toggleCard
+                    ThemeTag = { TextColor3 = "SubText" },
+                    Parent = card
                 })
             end
 
-            local pill = Creator.New("Frame", {
-                Name = "Pill",
+            -- Switch Track Pill
+            local track = Creator.New("Frame", {
+                Name = "Track",
                 Size = UDim2.new(0, 40, 0, 22),
-                Position = UDim2.new(1, -54, 0.5, -11),
-                BackgroundColor3 = state and theme.Accent or theme.ToggleOff,
-                Parent = toggleCard
+                Position = UDim2.new(1, -52, 0.5, -11),
+                BackgroundColor3 = state and Creator.GetThemeProperty("Accent") or Creator.GetThemeProperty("ToggleOff"),
+                Parent = card
             })
-            Creator.AddCorner(pill, 11)
+            Creator.AddCorner(track, 11)
 
-            local knob = Creator.New("Frame", {
-                Name = "Knob",
+            local thumb = Creator.New("Frame", {
+                Name = "Thumb",
                 Size = UDim2.new(0, 16, 0, 16),
                 Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8),
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                Parent = pill
+                BackgroundColor3 = state and Creator.GetThemeProperty("Background") or Color3.fromRGB(220, 220, 220),
+                Parent = track
             })
-            Creator.AddCorner(knob, 8)
+            Creator.AddCorner(thumb, 8)
 
-            local function setState(newState, callCallback)
+            local thumbMotor = Flipper.SingleMotor.new(state and 1 or 0)
+            thumbMotor:onStep(function(val)
+                local offset = 3 + val * (40 - 16 - 6)
+                thumb.Position = UDim2.new(0, offset, 0.5, -8)
+            end)
+
+            local function setToggle(newState, skipCallback)
                 state = newState
-                if state then
-                    Creator.Tween(pill, { BackgroundColor3 = theme.Accent }, 0.2)
-                    Creator.Tween(knob, { Position = UDim2.new(1, -19, 0.5, -8) }, 0.2, Enum.EasingStyle.Back)
-                else
-                    Creator.Tween(pill, { BackgroundColor3 = theme.ToggleOff }, 0.2)
-                    Creator.Tween(knob, { Position = UDim2.new(0, 3, 0.5, -8) }, 0.2, Enum.EasingStyle.Back)
-                end
                 if flag then ConfigManager:Set(flag, state) end
-                if callCallback ~= false then pcall(callback, state) end
+
+                thumbMotor:setGoal(Flipper.Spring.new(state and 1 or 0, { frequency = 8 }))
+                Creator.Tween(track, {
+                    BackgroundColor3 = state and Creator.GetThemeProperty("Accent") or Creator.GetThemeProperty("ToggleOff")
+                }, 0.18)
+                Creator.Tween(thumb, {
+                    BackgroundColor3 = state and Creator.GetThemeProperty("Background") or Color3.fromRGB(220, 220, 220)
+                }, 0.18)
+
+                if not skipCallback then pcall(callback, state) end
             end
 
-            toggleCard.MouseButton1Click:Connect(function() setState(not state) end)
-            toggleCard.MouseEnter:Connect(function() Creator.Tween(toggleCard, { BackgroundColor3 = theme.CardHover }, 0.15) end)
-            toggleCard.MouseLeave:Connect(function() Creator.Tween(toggleCard, { BackgroundColor3 = theme.CardBackground }, 0.15) end)
+            card.MouseButton1Click:Connect(function()
+                setToggle(not state)
+            end)
+
+            card.MouseEnter:Connect(function()
+                Creator.Tween(card, { BackgroundColor3 = Creator.GetThemeProperty("CardHover") }, 0.15)
+            end)
+            card.MouseLeave:Connect(function()
+                Creator.Tween(card, { BackgroundColor3 = Creator.GetThemeProperty("CardBackground") }, 0.15)
+            end)
 
             return {
-                Instance = toggleCard,
-                Value = state,
-                Set = function(_, v) setState(v) end,
-                SetValue = function(_, v) setState(v) end
+                Set = setToggle,
+                GetValue = function() return state end
             }
         end
 
-        -- Element: Slider
         function Tab:CreateSlider(sliderConfig)
             sliderConfig = sliderConfig or {}
-            local sTitle = sliderConfig.Title or "Slider"
-            local sDesc = sliderConfig.Desc or ""
+            local title = sliderConfig.Title or "Slider"
+            local desc = sliderConfig.Desc
             local min = sliderConfig.Min or 0
             local max = sliderConfig.Max or 100
             local step = sliderConfig.Step or 1
@@ -2014,108 +1978,127 @@ function HoshiUI:CreateWindow(config)
                 if saved ~= nil then default = saved else ConfigManager:Set(flag, default) end
             end
 
-            local value = math.clamp(default, min, max)
-            local sliderCard = Creator.New("Frame", {
-                Name = "Slider_" .. sTitle,
-                Size = UDim2.new(1, 0, 0, sDesc ~= "" and 62 or 52),
-                BackgroundColor3 = theme.CardBackground,
-                Parent = page
+            local currentValue = math.clamp(default, min, max)
+
+            local card = Creator.New("Frame", {
+                Name = "Slider_" .. title,
+                Size = UDim2.new(1, 0, 0, desc and 62 or 52),
+                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                Parent = pageScroll
             })
-            Creator.AddCorner(sliderCard, 8)
-            Creator.AddStroke(sliderCard, theme.Border, 1)
+            Creator.AddCorner(card, 8)
+            Creator.AddStroke(card, "Border", 1)
 
             Creator.New("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -90, 0, 20),
-                Position = UDim2.new(0, 14, 0, 8),
+                Size = UDim2.new(1, -80, 0, 16),
+                Position = UDim2.new(0, 12, 0, 8),
                 BackgroundTransparency = 1,
-                Text = sTitle,
-                TextColor3 = theme.Text,
+                Text = title,
+                TextColor3 = Creator.GetThemeProperty("Text"),
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = sliderCard
+                ThemeTag = { TextColor3 = "Text" },
+                Parent = card
             })
 
-            local valueLabel = Creator.New("TextLabel", {
-                Name = "Value",
-                Size = UDim2.new(0, 80, 0, 20),
-                Position = UDim2.new(1, -94, 0, 8),
+            local valLabel = Creator.New("TextLabel", {
+                Name = "ValueDisplay",
+                Size = UDim2.new(0, 60, 0, 16),
+                Position = UDim2.new(1, -72, 0, 8),
                 BackgroundTransparency = 1,
-                Text = formatStr:gsub("{value}", tostring(value)),
-                TextColor3 = theme.Accent,
+                Text = formatStr:gsub("{value}", tostring(currentValue)),
+                TextColor3 = Creator.GetThemeProperty("Accent"),
                 TextSize = 12,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Right,
-                Parent = sliderCard
+                ThemeTag = { TextColor3 = "Accent" },
+                Parent = card
             })
 
-            if sDesc ~= "" then
+            if desc then
                 Creator.New("TextLabel", {
                     Name = "Desc",
-                    Size = UDim2.new(1, -28, 0, 14),
-                    Position = UDim2.new(0, 14, 0, 26),
+                    Size = UDim2.new(1, -80, 0, 12),
+                    Position = UDim2.new(0, 12, 0, 24),
                     BackgroundTransparency = 1,
-                    Text = sDesc,
-                    TextColor3 = theme.SubText,
+                    Text = desc,
+                    TextColor3 = Creator.GetThemeProperty("SubText"),
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    Parent = sliderCard
+                    ThemeTag = { TextColor3 = "SubText" },
+                    Parent = card
                 })
             end
 
-            local trackPos = sDesc ~= "" and 44 or 34
-            local track = Creator.New("TextButton", {
-                Name = "Track",
-                Size = UDim2.new(1, -28, 0, 6),
-                Position = UDim2.new(0, 14, 0, trackPos),
-                BackgroundColor3 = theme.ToggleOff,
-                AutoButtonColor = false,
+            local trackHolder = Creator.New("TextButton", {
+                Name = "TrackHolder",
+                Size = UDim2.new(1, -24, 0, 8),
+                Position = UDim2.new(0, 12, 1, -16),
+                BackgroundTransparency = 1,
                 Text = "",
-                Parent = sliderCard
+                AutoButtonColor = false,
+                Parent = card
             })
-            Creator.AddCorner(track, 3)
 
-            local alpha = (value - min) / (max - min)
-            local fill = Creator.New("Frame", {
-                Name = "Fill",
-                Size = UDim2.new(alpha, 0, 1, 0),
-                BackgroundColor3 = theme.Accent,
-                Parent = track
+            local trackBg = Creator.New("Frame", {
+                Name = "TrackBg",
+                Size = UDim2.new(1, 0, 0, 4),
+                Position = UDim2.new(0, 0, 0.5, -2),
+                BackgroundColor3 = Creator.GetThemeProperty("ToggleOff"),
+                ThemeTag = { BackgroundColor3 = "ToggleOff" },
+                Parent = trackHolder
             })
-            Creator.AddCorner(fill, 3)
+            Creator.AddCorner(trackBg, 2)
+
+            local fillPercent = (currentValue - min) / (max - min)
+            local trackFill = Creator.New("Frame", {
+                Name = "TrackFill",
+                Size = UDim2.new(fillPercent, 0, 1, 0),
+                BackgroundColor3 = Creator.GetThemeProperty("Accent"),
+                ThemeTag = { BackgroundColor3 = "Accent" },
+                Parent = trackBg
+            })
+            Creator.AddCorner(trackFill, 2)
 
             local thumb = Creator.New("Frame", {
                 Name = "Thumb",
-                Size = UDim2.new(0, 14, 0, 14),
-                Position = UDim2.new(alpha, -7, 0.5, -7),
+                Size = UDim2.new(0, 12, 0, 12),
+                Position = UDim2.new(1, -6, 0.5, -6),
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                Parent = track
+                Parent = trackFill
             })
-            Creator.AddCorner(thumb, 7)
-
-            local function updateValue(newVal, callCallback)
-                newVal = math.clamp(newVal, min, max)
-                if step > 0 then newVal = math.floor((newVal - min) / step + 0.5) * step + min end
-                value = newVal
-                local curAlpha = math.clamp((value - min) / (max - min), 0, 1)
-                fill.Size = UDim2.new(curAlpha, 0, 1, 0)
-                thumb.Position = UDim2.new(curAlpha, -7, 0.5, -7)
-                valueLabel.Text = formatStr:gsub("{value}", tostring(value))
-                if flag then ConfigManager:Set(flag, value) end
-                if callCallback ~= false then pcall(callback, value) end
-            end
+            Creator.AddCorner(thumb, 6)
 
             local isDragging = false
-            local function handleInput(input)
-                local absX = track.AbsolutePosition.X
-                local absW = track.AbsoluteSize.X
-                local relAlpha = math.clamp((input.Position.X - absX) / absW, 0, 1)
-                updateValue(min + (max - min) * relAlpha)
+
+            local function updateSlider(value, skipCallback)
+                currentValue = math.clamp(value, min, max)
+                if step > 0 then
+                    currentValue = math.floor((currentValue - min) / step + 0.5) * step + min
+                end
+                currentValue = math.clamp(currentValue, min, max)
+
+                if flag then ConfigManager:Set(flag, currentValue) end
+                valLabel.Text = formatStr:gsub("{value}", tostring(currentValue))
+
+                local pct = (currentValue - min) / (max - min)
+                Creator.Tween(trackFill, { Size = UDim2.new(pct, 0, 1, 0) }, 0.08)
+
+                if not skipCallback then pcall(callback, currentValue) end
             end
 
-            track.InputBegan:Connect(function(input)
+            local function handleInput(input)
+                local trackWidth = trackHolder.AbsoluteSize.X
+                local clickOffset = input.Position.X - trackHolder.AbsolutePosition.X
+                local pct = math.clamp(clickOffset / trackWidth, 0, 1)
+                updateSlider(min + pct * (max - min))
+            end
+
+            trackHolder.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     isDragging = true
                     handleInput(input)
@@ -2135,18 +2118,15 @@ function HoshiUI:CreateWindow(config)
             end)
 
             return {
-                Instance = sliderCard,
-                Value = value,
-                Set = function(_, v) updateValue(v) end,
-                SetValue = function(_, v) updateValue(v) end
+                Set = updateSlider,
+                GetValue = function() return currentValue end
             }
         end
 
-        -- Element: Dropdown
         function Tab:CreateDropdown(dropdownConfig)
             dropdownConfig = dropdownConfig or {}
-            local dTitle = dropdownConfig.Title or "Dropdown"
-            local dDesc = dropdownConfig.Desc or ""
+            local title = dropdownConfig.Title or "Dropdown"
+            local desc = dropdownConfig.Desc
             local options = dropdownConfig.Options or {}
             local isMulti = dropdownConfig.Multi or false
             local default = dropdownConfig.Default or (isMulti and {} or options[1] or "")
@@ -2160,390 +2140,190 @@ function HoshiUI:CreateWindow(config)
 
             local selected = default
             local isOpen = false
-            local cardHeight = dDesc ~= "" and 60 or 44
 
-            local dropdownCard = Creator.New("Frame", {
-                Name = "Dropdown_" .. dTitle,
-                Size = UDim2.new(1, 0, 0, cardHeight),
-                BackgroundColor3 = theme.CardBackground,
+            local card = Creator.New("Frame", {
+                Name = "Dropdown_" .. title,
+                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
+                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
                 ClipsDescendants = true,
-                Parent = page
+                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                Parent = pageScroll
             })
-            Creator.AddCorner(dropdownCard, 8)
-            Creator.AddStroke(dropdownCard, theme.Border, 1)
+            Creator.AddCorner(card, 8)
+            local stroke = Creator.AddStroke(card, "Border", 1)
 
             local headerBtn = Creator.New("TextButton", {
                 Name = "Header",
-                Size = UDim2.new(1, 0, 0, cardHeight),
+                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
                 BackgroundTransparency = 1,
                 AutoButtonColor = false,
                 Text = "",
-                Parent = dropdownCard
+                Parent = card
             })
 
             Creator.New("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -180, 0, dDesc ~= "" and 20 or cardHeight),
-                Position = UDim2.new(0, 14, 0, dDesc ~= "" and 8 or 0),
+                Size = UDim2.new(0.5, 0, 0, 16),
+                Position = UDim2.new(0, 12, 0, desc and 8 or 11),
                 BackgroundTransparency = 1,
-                Text = dTitle,
-                TextColor3 = theme.Text,
+                Text = title,
+                TextColor3 = Creator.GetThemeProperty("Text"),
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
+                ThemeTag = { TextColor3 = "Text" },
                 Parent = headerBtn
             })
 
-            if dDesc ~= "" then
+            if desc then
                 Creator.New("TextLabel", {
                     Name = "Desc",
-                    Size = UDim2.new(1, -180, 0, 16),
-                    Position = UDim2.new(0, 14, 0, 28),
+                    Size = UDim2.new(0.5, 0, 0, 14),
+                    Position = UDim2.new(0, 12, 0, 26),
                     BackgroundTransparency = 1,
-                    Text = dDesc,
-                    TextColor3 = theme.SubText,
+                    Text = desc,
+                    TextColor3 = Creator.GetThemeProperty("SubText"),
                     TextSize = 10,
                     Font = Enum.Font.GothamMedium,
                     TextXAlignment = Enum.TextXAlignment.Left,
+                    ThemeTag = { TextColor3 = "SubText" },
                     Parent = headerBtn
                 })
             end
 
-            local selectedBadge = Creator.New("Frame", {
-                Name = "Badge",
-                Size = UDim2.new(0, 140, 0, 28),
-                Position = UDim2.new(1, -154, 0.5, -14),
-                BackgroundColor3 = theme.Background,
-                Parent = headerBtn
-            })
-            Creator.AddCorner(selectedBadge, 6)
-            Creator.AddStroke(selectedBadge, theme.Border, 1)
-
-            local function getSelectedText()
+            local function getDisplayString()
                 if isMulti then
                     if type(selected) == "table" and #selected > 0 then
                         return table.concat(selected, ", ")
                     end
-                    return "None selected"
+                    return "None"
                 end
                 return tostring(selected or "Select...")
             end
 
-            local selectedLabel = Creator.New("TextLabel", {
-                Name = "SelectedText",
-                Size = UDim2.new(1, -28, 1, 0),
-                Position = UDim2.new(0, 8, 0, 0),
+            local valLabel = Creator.New("TextLabel", {
+                Name = "ValueDisplay",
+                Size = UDim2.new(0.5, -42, 1, 0),
+                Position = UDim2.new(0.5, 0, 0, 0),
                 BackgroundTransparency = 1,
-                Text = getSelectedText(),
-                TextColor3 = theme.Text,
-                TextSize = 11,
+                Text = getDisplayString(),
+                TextColor3 = Creator.GetThemeProperty("Accent"),
+                TextSize = 12,
                 Font = Enum.Font.GothamMedium,
-                TextXAlignment = Enum.TextXAlignment.Left,
+                TextXAlignment = Enum.TextXAlignment.Right,
                 TextTruncate = Enum.TextTruncate.AtEnd,
-                Parent = selectedBadge
+                ThemeTag = { TextColor3 = "Accent" },
+                Parent = headerBtn
             })
 
-            local chevron = Creator.New("ImageLabel", {
-                Name = "Chevron",
-                Size = UDim2.new(0, 12, 0, 12),
-                Position = UDim2.new(1, -18, 0.5, -6),
+            local arrowIcon = Creator.New("ImageLabel", {
+                Name = "Arrow",
+                Size = UDim2.new(0, 14, 0, 14),
+                Position = UDim2.new(1, -24, 0.5, -7),
                 BackgroundTransparency = 1,
                 Image = IconEngine.GetIcon("chevron-down"),
-                ImageColor3 = theme.SubText,
-                Parent = selectedBadge
+                ImageColor3 = Creator.GetThemeProperty("SubText"),
+                ThemeTag = { ImageColor3 = "SubText" },
+                Parent = headerBtn
             })
 
-            local listContainer = Creator.New("Frame", {
-                Name = "List",
-                Size = UDim2.new(1, -28, 0, 0),
-                Position = UDim2.new(0, 14, 0, cardHeight + 4),
+            local optionList = Creator.New("Frame", {
+                Name = "OptionList",
+                Size = UDim2.new(1, -24, 0, 0),
+                Position = UDim2.new(0, 12, 0, desc and 48 or 38),
                 BackgroundTransparency = 1,
-                Parent = dropdownCard
+                Parent = card
             })
-            local listLayout = Creator.New("UIListLayout", { Padding = UDim.new(0, 4), Parent = listContainer })
+            local optionLayout = Creator.New("UIListLayout", {
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Padding = UDim.new(0, 4),
+                Parent = optionList
+            })
+
             local optionButtons = {}
 
-            local function updateSelection(newVal, callCallback)
-                selected = newVal
-                selectedLabel.Text = getSelectedText()
-                for optName, btnData in pairs(optionButtons) do
-                    local isSel = isMulti and (type(selected) == "table" and table.find(selected, optName) ~= nil) or (selected == optName)
-                    btnData.Indicator.Visible = isSel
-                    btnData.Label.TextColor3 = isSel and theme.Accent or theme.Text
-                    Creator.Tween(btnData.Button, { BackgroundColor3 = isSel and theme.Background or theme.CardHover }, 0.15)
-                end
-                if flag then ConfigManager:Set(flag, selected) end
-                if callCallback ~= false then pcall(callback, selected) end
-            end
-
-            local function refreshOptions(newOptions)
-                options = newOptions or {}
-                for _, child in ipairs(listContainer:GetChildren()) do
-                    if child:IsA("GuiObject") and child ~= listLayout then child:Destroy() end
-                end
+            local function rebuildOptions()
+                for _, btn in pairs(optionButtons) do btn:Destroy() end
                 optionButtons = {}
-                for _, opt in ipairs(options) do
+
+                for idx, opt in ipairs(options) do
+                    local optStr = tostring(opt)
+                    local isSelected = isMulti and table.find(selected, optStr) ~= nil or selected == optStr
+
                     local optBtn = Creator.New("TextButton", {
-                        Name = "Option_" .. opt,
-                        Size = UDim2.new(1, 0, 0, 30),
-                        BackgroundColor3 = theme.CardHover,
+                        Name = "Opt_" .. optStr,
+                        Size = UDim2.new(1, 0, 0, 28),
+                        BackgroundColor3 = isSelected and Creator.GetThemeProperty("Accent") or Creator.GetThemeProperty("ToggleOff"),
+                        BackgroundTransparency = isSelected and 0.85 or 0.5,
                         AutoButtonColor = false,
-                        Text = "",
-                        Parent = listContainer
+                        Text = "  " .. optStr,
+                        TextColor3 = isSelected and Creator.GetThemeProperty("Accent") or Creator.GetThemeProperty("Text"),
+                        TextSize = 12,
+                        Font = Enum.Font.GothamMedium,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        LayoutOrder = idx,
+                        Parent = optionList
                     })
                     Creator.AddCorner(optBtn, 6)
 
-                    local optLabel = Creator.New("TextLabel", {
-                        Name = "Label",
-                        Size = UDim2.new(1, -30, 1, 0),
-                        Position = UDim2.new(0, 10, 0, 0),
-                        BackgroundTransparency = 1,
-                        Text = opt,
-                        TextColor3 = theme.Text,
-                        TextSize = 11,
-                        Font = Enum.Font.GothamMedium,
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                        Parent = optBtn
-                    })
-
-                    local checkIco = Creator.New("ImageLabel", {
-                        Name = "Check",
-                        Size = UDim2.new(0, 14, 0, 14),
-                        Position = UDim2.new(1, -22, 0.5, -7),
-                        BackgroundTransparency = 1,
-                        Image = IconEngine.GetIcon("check"),
-                        ImageColor3 = theme.Accent,
-                        Visible = false,
-                        Parent = optBtn
-                    })
-
-                    optionButtons[opt] = { Button = optBtn, Label = optLabel, Indicator = checkIco }
                     optBtn.MouseButton1Click:Connect(function()
                         if isMulti then
-                            local curTable = type(selected) == "table" and selected or {}
-                            local idx = table.find(curTable, opt)
-                            if idx then table.remove(curTable, idx) else table.insert(curTable, opt) end
-                            updateSelection(curTable)
+                            local foundIndex = table.find(selected, optStr)
+                            if foundIndex then
+                                table.remove(selected, foundIndex)
+                            else
+                                table.insert(selected, optStr)
+                            end
+                            if flag then ConfigManager:Set(flag, selected) end
+                            valLabel.Text = getDisplayString()
+                            rebuildOptions()
+                            pcall(callback, selected)
                         else
-                            updateSelection(opt)
-                            isOpen = false
-                            Creator.Tween(chevron, { Rotation = 0 }, 0.2)
-                            Creator.Tween(dropdownCard, { Size = UDim2.new(1, 0, 0, cardHeight) }, 0.2)
+                            selected = optStr
+                            if flag then ConfigManager:Set(flag, selected) end
+                            valLabel.Text = getDisplayString()
+                            rebuildOptions()
+                            pcall(callback, selected)
                         end
                     end)
+                    table.insert(optionButtons, optBtn)
                 end
-                updateSelection(selected, false)
             end
 
-            refreshOptions(options)
+            rebuildOptions()
 
-            headerBtn.MouseButton1Click:Connect(function()
+            local function toggleDropdown()
                 isOpen = not isOpen
-                local targetHeight = isOpen and (cardHeight + (#options * 34) + 10) or cardHeight
-                Creator.Tween(chevron, { Rotation = isOpen and 180 or 0 }, 0.2)
-                Creator.Tween(dropdownCard, { Size = UDim2.new(1, 0, 0, targetHeight) }, 0.22)
-            end)
+                local baseH = desc and 48 or 38
+                local targetH = isOpen and (baseH + (#options * 32) + 8) or baseH
+
+                Creator.Tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.22, Enum.EasingStyle.Back)
+                Creator.Tween(arrowIcon, { Rotation = isOpen and 180 or 0 }, 0.2)
+            end
+
+            headerBtn.MouseButton1Click:Connect(toggleDropdown)
 
             return {
-                Instance = dropdownCard,
-                Value = selected,
-                Set = function(_, v) updateSelection(v) end,
-                SetOptions = function(_, o) refreshOptions(o) end
+                Set = function(val)
+                    selected = val
+                    if flag then ConfigManager:Set(flag, selected) end
+                    valLabel.Text = getDisplayString()
+                    rebuildOptions()
+                end,
+                SetValues = function(newOptions)
+                    options = newOptions or {}
+                    rebuildOptions()
+                end,
+                GetValue = function() return selected end
             }
         end
 
-        -- Element: ColorPicker
-        function Tab:CreateColorPicker(colorConfig)
-            colorConfig = colorConfig or {}
-            local cTitle = colorConfig.Title or "Color Picker"
-            local cDesc = colorConfig.Desc or ""
-            local default = colorConfig.Default or Color3.fromRGB(75, 130, 255)
-            local flag = colorConfig.Flag
-            local callback = colorConfig.Callback or function() end
-
-            if flag then
-                local saved = ConfigManager:Get(flag)
-                if saved ~= nil then default = saved else ConfigManager:Set(flag, default) end
-            end
-
-            local color = default
-            local cardHeight = cDesc ~= "" and 52 or 42
-            local pickerCard = Creator.New("TextButton", {
-                Name = "ColorPicker_" .. cTitle,
-                Size = UDim2.new(1, 0, 0, cardHeight),
-                BackgroundColor3 = theme.CardBackground,
-                AutoButtonColor = false,
-                Text = "",
-                Parent = page
-            })
-            Creator.AddCorner(pickerCard, 8)
-            Creator.AddStroke(pickerCard, theme.Border, 1)
-
-            Creator.New("TextLabel", {
-                Name = "Title",
-                Size = UDim2.new(1, -70, 0, cDesc ~= "" and 20 or cardHeight),
-                Position = UDim2.new(0, 14, 0, cDesc ~= "" and 8 or 0),
-                BackgroundTransparency = 1,
-                Text = cTitle,
-                TextColor3 = theme.Text,
-                TextSize = 13,
-                Font = Enum.Font.GothamBold,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = pickerCard
-            })
-
-            local swatch = Creator.New("Frame", {
-                Name = "Swatch",
-                Size = UDim2.new(0, 32, 0, 22),
-                Position = UDim2.new(1, -46, 0.5, -11),
-                BackgroundColor3 = color,
-                Parent = pickerCard
-            })
-            Creator.AddCorner(swatch, 6)
-            Creator.AddStroke(swatch, Color3.fromRGB(255, 255, 255), 1, 0.75)
-
-            local function setColor(newColor, callCallback)
-                color = newColor
-                swatch.BackgroundColor3 = color
-                if flag then ConfigManager:Set(flag, color) end
-                if callCallback ~= false then pcall(callback, color) end
-            end
-
-            pickerCard.MouseButton1Click:Connect(function()
-                Window:Dialog({
-                    Title = cTitle,
-                    Content = "Choose a preset color swatch:",
-                    Buttons = {
-                        { Text = "Red", Variant = "Danger", Callback = function() setColor(Color3.fromRGB(244, 63, 94)) end },
-                        { Text = "Green", Variant = "Primary", Callback = function() setColor(Color3.fromRGB(16, 185, 129)) end },
-                        { Text = "Blue", Variant = "Primary", Callback = function() setColor(Color3.fromRGB(75, 130, 255)) end },
-                        { Text = "Purple", Variant = "Primary", Callback = function() setColor(Color3.fromRGB(168, 85, 247)) end },
-                        { Text = "Close", Variant = "Secondary" }
-                    }
-                })
-            end)
-
-            return {
-                Instance = pickerCard,
-                Value = color,
-                Set = function(_, col) setColor(col) end,
-                SetValue = function(_, col) setColor(col) end
-            }
-        end
-
-        -- Element: Keybind
-        function Tab:CreateKeybind(keyConfig)
-            keyConfig = keyConfig or {}
-            local kTitle = keyConfig.Title or "Keybind"
-            local kDesc = keyConfig.Desc or ""
-            local default = keyConfig.Default or Enum.KeyCode.E
-            local flag = keyConfig.Flag
-            local callback = keyConfig.Callback or function() end
-
-            if flag then
-                local saved = ConfigManager:Get(flag)
-                if saved ~= nil then default = saved else ConfigManager:Set(flag, default) end
-            end
-
-            local key = default
-            local isListening = false
-            local cardHeight = kDesc ~= "" and 52 or 42
-
-            local keybindCard = Creator.New("TextButton", {
-                Name = "Keybind_" .. kTitle,
-                Size = UDim2.new(1, 0, 0, cardHeight),
-                BackgroundColor3 = theme.CardBackground,
-                AutoButtonColor = false,
-                Text = "",
-                Parent = page
-            })
-            Creator.AddCorner(keybindCard, 8)
-            Creator.AddStroke(keybindCard, theme.Border, 1)
-
-            Creator.New("TextLabel", {
-                Name = "Title",
-                Size = UDim2.new(1, -90, 0, kDesc ~= "" and 20 or cardHeight),
-                Position = UDim2.new(0, 14, 0, kDesc ~= "" and 8 or 0),
-                BackgroundTransparency = 1,
-                Text = kTitle,
-                TextColor3 = theme.Text,
-                TextSize = 13,
-                Font = Enum.Font.GothamBold,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = keybindCard
-            })
-
-            local badge = Creator.New("Frame", {
-                Name = "Badge",
-                Size = UDim2.new(0, 64, 0, 24),
-                Position = UDim2.new(1, -78, 0.5, -12),
-                BackgroundColor3 = theme.Background,
-                Parent = keybindCard
-            })
-            Creator.AddCorner(badge, 6)
-            local badgeStroke = Creator.AddStroke(badge, theme.Border, 1)
-
-            local keyLabel = Creator.New("TextLabel", {
-                Name = "KeyText",
-                Size = UDim2.new(1, 0, 1, 0),
-                BackgroundTransparency = 1,
-                Text = typeof(key) == "EnumItem" and key.Name or tostring(key),
-                TextColor3 = theme.Accent,
-                TextSize = 11,
-                Font = Enum.Font.GothamBold,
-                Parent = badge
-            })
-
-            local function setKey(newKey, callCallback)
-                key = newKey
-                keyLabel.Text = typeof(key) == "EnumItem" and key.Name or tostring(key)
-                if flag then ConfigManager:Set(flag, key) end
-                if callCallback ~= false then pcall(callback, key) end
-            end
-
-            keybindCard.MouseButton1Click:Connect(function()
-                if isListening then return end
-                isListening = true
-                keyLabel.Text = "..."
-                badgeStroke.Color = theme.Accent
-                local conn
-                conn = UserInputService.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.Keyboard then
-                        conn:Disconnect()
-                        isListening = false
-                        badgeStroke.Color = theme.Border
-                        if input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode ~= Enum.KeyCode.Escape then
-                            setKey(input.KeyCode)
-                        else
-                            keyLabel.Text = typeof(key) == "EnumItem" and key.Name or tostring(key)
-                        end
-                    end
-                end)
-            end)
-
-            Creator.AddSignal(UserInputService.InputBegan, function(input, gpe)
-                if gpe or isListening then return end
-                if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == key then
-                    pcall(callback)
-                end
-            end)
-
-            return {
-                Instance = keybindCard,
-                Value = key,
-                Set = function(_, k) setKey(k) end,
-                SetValue = function(_, k) setKey(k) end
-            }
-        end
-
-        -- Element: Input
         function Tab:CreateInput(inputConfig)
             inputConfig = inputConfig or {}
-            local iTitle = inputConfig.Title or "Input"
-            local iDesc = inputConfig.Desc or ""
+            local title = inputConfig.Title or "Input"
             local placeholder = inputConfig.Placeholder or "Enter text..."
             local default = inputConfig.Default or ""
-            local numericOnly = inputConfig.NumericOnly or false
+            local numeric = inputConfig.Numeric or false
             local flag = inputConfig.Flag
             local callback = inputConfig.Callback or function() end
 
@@ -2552,111 +2332,288 @@ function HoshiUI:CreateWindow(config)
                 if saved ~= nil then default = saved else ConfigManager:Set(flag, default) end
             end
 
-            local text = tostring(default)
-            local cardHeight = iDesc ~= "" and 58 or 46
-            local inputCard = Creator.New("Frame", {
-                Name = "Input_" .. iTitle,
-                Size = UDim2.new(1, 0, 0, cardHeight),
-                BackgroundColor3 = theme.CardBackground,
-                Parent = page
+            local card = Creator.New("Frame", {
+                Name = "Input_" .. title,
+                Size = UDim2.new(1, 0, 0, 42),
+                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                Parent = pageScroll
             })
-            Creator.AddCorner(inputCard, 8)
-            Creator.AddStroke(inputCard, theme.Border, 1)
+            Creator.AddCorner(card, 8)
+            local stroke = Creator.AddStroke(card, "Border", 1)
 
             Creator.New("TextLabel", {
                 Name = "Title",
-                Size = UDim2.new(1, -160, 0, iDesc ~= "" and 20 or cardHeight),
-                Position = UDim2.new(0, 14, 0, iDesc ~= "" and 8 or 0),
+                Size = UDim2.new(0.4, 0, 1, 0),
+                Position = UDim2.new(0, 12, 0, 0),
                 BackgroundTransparency = 1,
-                Text = iTitle,
-                TextColor3 = theme.Text,
+                Text = title,
+                TextColor3 = Creator.GetThemeProperty("Text"),
                 TextSize = 13,
                 Font = Enum.Font.GothamBold,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = inputCard
+                ThemeTag = { TextColor3 = "Text" },
+                Parent = card
             })
 
             local boxContainer = Creator.New("Frame", {
                 Name = "BoxContainer",
-                Size = UDim2.new(0, 140, 0, 28),
-                Position = UDim2.new(1, -154, 0.5, -14),
-                BackgroundColor3 = theme.Background,
-                Parent = inputCard
+                Size = UDim2.new(0.55, 0, 0, 26),
+                Position = UDim2.new(0.45, -12, 0.5, -13),
+                BackgroundColor3 = Creator.GetThemeProperty("ToggleOff"),
+                ThemeTag = { BackgroundColor3 = "ToggleOff" },
+                Parent = card
             })
             Creator.AddCorner(boxContainer, 6)
-            local boxStroke = Creator.AddStroke(boxContainer, theme.Border, 1)
 
             local textBox = Creator.New("TextBox", {
                 Name = "TextBox",
                 Size = UDim2.new(1, -16, 1, 0),
                 Position = UDim2.new(0, 8, 0, 0),
                 BackgroundTransparency = 1,
-                Text = text,
+                Text = default,
                 PlaceholderText = placeholder,
-                TextColor3 = theme.Text,
-                PlaceholderColor3 = theme.SubText,
-                TextSize = 11,
+                PlaceholderColor3 = Creator.GetThemeProperty("SubText"),
+                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextSize = 12,
                 Font = Enum.Font.GothamMedium,
                 TextXAlignment = Enum.TextXAlignment.Left,
                 ClearTextOnFocus = false,
+                ThemeTag = { TextColor3 = "Text", PlaceholderColor3 = "SubText" },
                 Parent = boxContainer
             })
 
-            local function setText(newText, callCallback, enterPressed)
-                if numericOnly then newText = newText:gsub("%D+", "") end
-                text = newText
-                textBox.Text = text
-                if flag then ConfigManager:Set(flag, text) end
-                if callCallback ~= false then pcall(callback, text, enterPressed) end
-            end
+            local indicator = Creator.New("Frame", {
+                Name = "Indicator",
+                Size = UDim2.new(0, 0, 0, 2),
+                Position = UDim2.new(0, 0, 1, -2),
+                BackgroundColor3 = Creator.GetThemeProperty("Accent"),
+                ThemeTag = { BackgroundColor3 = "Accent" },
+                Parent = boxContainer
+            })
 
-            textBox.Focused:Connect(function() Creator.Tween(boxStroke, { Color = theme.Accent }, 0.15) end)
+            textBox.Focused:Connect(function()
+                Creator.Tween(indicator, { Size = UDim2.new(1, 0, 0, 2) }, 0.18)
+                Creator.Tween(stroke, { Color = Creator.GetThemeProperty("Accent") }, 0.18)
+            end)
+
             textBox.FocusLost:Connect(function(enterPressed)
-                Creator.Tween(boxStroke, { Color = theme.Border }, 0.15)
-                setText(textBox.Text, true, enterPressed)
+                Creator.Tween(indicator, { Size = UDim2.new(0, 0, 0, 2) }, 0.18)
+                Creator.Tween(stroke, { Color = Creator.GetThemeProperty("Border") }, 0.18)
+
+                if numeric then
+                    local num = tonumber(textBox.Text)
+                    if not num then textBox.Text = default return end
+                end
+
+                if flag then ConfigManager:Set(flag, textBox.Text) end
+                pcall(callback, textBox.Text, enterPressed)
             end)
 
             return {
-                Instance = inputCard,
-                Value = text,
-                Set = function(_, t) setText(t) end,
-                SetValue = function(_, t) setText(t) end
+                Set = function(newText)
+                    textBox.Text = tostring(newText)
+                    if flag then ConfigManager:Set(flag, textBox.Text) end
+                end,
+                GetValue = function() return textBox.Text end
             }
         end
 
-        if #Window.Tabs == 0 then task.spawn(activateTab) end
-        table.insert(Window.Tabs, Tab)
-        return Tab
-    end
+        function Tab:CreateKeybind(keybindConfig)
+            keybindConfig = keybindConfig or {}
+            local title = keybindConfig.Title or "Keybind"
+            local desc = keybindConfig.Desc
+            local default = keybindConfig.Default or Enum.KeyCode.E
+            local flag = keybindConfig.Flag
+            local callback = keybindConfig.Callback or function() end
 
-    function Window:AddTab(tabConfig) return self:CreateTab(tabConfig) end
-    function Window:Notify(notifConfig) NotificationManager.Notify(notifHolder, notifConfig, theme) end
-    function Window:Dialog(dialogConfig) DialogManager.Open(screenGui, dialogConfig, theme) end
-    function Window:SetFloatingVisible(visible) if floatingBtn then floatingBtn.Visible = visible end end
-    function Window:Toggle() toggleWindow() end
+            if flag then
+                local saved = ConfigManager:Get(flag)
+                if saved ~= nil then default = saved else ConfigManager:Set(flag, default) end
+            end
 
-    function Window:SetTheme(newThemeName)
-        local targetTheme = Themes[newThemeName]
-        if not targetTheme then return end
-        theme = targetTheme
-        self.ActiveTheme = targetTheme
-        self.ActiveThemeName = newThemeName
-        Creator.UpdateTheme(targetTheme, newThemeName)
-        mainFrame.BackgroundColor3 = targetTheme.Background
-        mainStroke.Color = targetTheme.Border
-        sidebar.BackgroundColor3 = targetTheme.Sidebar
-        if floatingBtn then
-            floatingBtn.BackgroundColor3 = targetTheme.Background
-            local fStroke = floatingBtn:FindFirstChildOfClass("UIStroke")
-            if fStroke then fStroke.Color = targetTheme.Accent end
-            local fIco = floatingBtn:FindFirstChild("Icon")
-            if fIco then fIco.ImageColor3 = targetTheme.Accent end
+            local boundKey = default
+            local isListening = false
+
+            local card = Creator.New("Frame", {
+                Name = "Keybind_" .. title,
+                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
+                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                Parent = pageScroll
+            })
+            Creator.AddCorner(card, 8)
+            Creator.AddStroke(card, "Border", 1)
+
+            Creator.New("TextLabel", {
+                Name = "Title",
+                Size = UDim2.new(0.6, 0, 0, 16),
+                Position = UDim2.new(0, 12, 0, desc and 8 or 11),
+                BackgroundTransparency = 1,
+                Text = title,
+                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextSize = 13,
+                Font = Enum.Font.GothamBold,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ThemeTag = { TextColor3 = "Text" },
+                Parent = card
+            })
+
+            if desc then
+                Creator.New("TextLabel", {
+                    Name = "Desc",
+                    Size = UDim2.new(0.6, 0, 0, 14),
+                    Position = UDim2.new(0, 12, 0, 26),
+                    BackgroundTransparency = 1,
+                    Text = desc,
+                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextSize = 10,
+                    Font = Enum.Font.GothamMedium,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ThemeTag = { TextColor3 = "SubText" },
+                    Parent = card
+                })
+            end
+
+            local bindBtn = Creator.New("TextButton", {
+                Name = "BindButton",
+                Size = UDim2.new(0, 75, 0, 24),
+                Position = UDim2.new(1, -87, 0.5, -12),
+                BackgroundColor3 = Creator.GetThemeProperty("ToggleOff"),
+                AutoButtonColor = false,
+                Text = typeof(boundKey) == "EnumItem" and boundKey.Name or tostring(boundKey),
+                TextColor3 = Creator.GetThemeProperty("Accent"),
+                TextSize = 11,
+                Font = Enum.Font.GothamBold,
+                ThemeTag = { BackgroundColor3 = "ToggleOff", TextColor3 = "Accent" },
+                Parent = card
+            })
+            Creator.AddCorner(bindBtn, 6)
+
+            bindBtn.MouseButton1Click:Connect(function()
+                isListening = true
+                bindBtn.Text = "..."
+                Creator.Tween(bindBtn, { BackgroundColor3 = Creator.GetThemeProperty("CardHover") }, 0.15)
+            end)
+
+            UserInputService.InputBegan:Connect(function(input, gpe)
+                if isListening and input.UserInputType == Enum.UserInputType.Keyboard then
+                    isListening = false
+                    boundKey = input.KeyCode
+                    bindBtn.Text = boundKey.Name
+                    Creator.Tween(bindBtn, { BackgroundColor3 = Creator.GetThemeProperty("ToggleOff") }, 0.15)
+                    if flag then ConfigManager:Set(flag, boundKey) end
+                    pcall(callback, boundKey)
+                elseif not gpe and not isListening and input.KeyCode == boundKey then
+                    pcall(callback, boundKey)
+                end
+            end)
+
+            return {
+                Set = function(newKey)
+                    boundKey = newKey
+                    bindBtn.Text = typeof(boundKey) == "EnumItem" and boundKey.Name or tostring(boundKey)
+                    if flag then ConfigManager:Set(flag, boundKey) end
+                end,
+                GetValue = function() return boundKey end
+            }
         end
-    end
 
-    function Window:Destroy()
-        Creator.Disconnect()
-        screenGui:Destroy()
+        function Tab:CreateColorPicker(colorConfig)
+            colorConfig = colorConfig or {}
+            local title = colorConfig.Title or "Color Picker"
+            local desc = colorConfig.Desc
+            local default = colorConfig.Default or Color3.fromRGB(247, 230, 185)
+            local flag = colorConfig.Flag
+            local callback = colorConfig.Callback or function() end
+
+            if flag then
+                local saved = ConfigManager:Get(flag)
+                if saved ~= nil then default = saved else ConfigManager:Set(flag, default) end
+            end
+
+            local currentColor = default
+
+            local card = Creator.New("TextButton", {
+                Name = "ColorPicker_" .. title,
+                Size = UDim2.new(1, 0, 0, desc and 48 or 38),
+                BackgroundColor3 = Creator.GetThemeProperty("CardBackground"),
+                AutoButtonColor = false,
+                Text = "",
+                ThemeTag = { BackgroundColor3 = "CardBackground" },
+                Parent = pageScroll
+            })
+            Creator.AddCorner(card, 8)
+            Creator.AddStroke(card, "Border", 1)
+
+            Creator.New("TextLabel", {
+                Name = "Title",
+                Size = UDim2.new(1, -70, 0, 16),
+                Position = UDim2.new(0, 12, 0, desc and 8 or 11),
+                BackgroundTransparency = 1,
+                Text = title,
+                TextColor3 = Creator.GetThemeProperty("Text"),
+                TextSize = 13,
+                Font = Enum.Font.GothamBold,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ThemeTag = { TextColor3 = "Text" },
+                Parent = card
+            })
+
+            if desc then
+                Creator.New("TextLabel", {
+                    Name = "Desc",
+                    Size = UDim2.new(1, -70, 0, 14),
+                    Position = UDim2.new(0, 12, 0, 26),
+                    BackgroundTransparency = 1,
+                    Text = desc,
+                    TextColor3 = Creator.GetThemeProperty("SubText"),
+                    TextSize = 10,
+                    Font = Enum.Font.GothamMedium,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    ThemeTag = { TextColor3 = "SubText" },
+                    Parent = card
+                })
+            end
+
+            local colorPreview = Creator.New("Frame", {
+                Name = "ColorPreview",
+                Size = UDim2.new(0, 28, 0, 20),
+                Position = UDim2.new(1, -40, 0.5, -10),
+                BackgroundColor3 = currentColor,
+                Parent = card
+            })
+            Creator.AddCorner(colorPreview, 4)
+            Creator.AddStroke(colorPreview, "Border", 1)
+
+            local function setColor(newCol)
+                currentColor = newCol
+                colorPreview.BackgroundColor3 = currentColor
+                if flag then ConfigManager:Set(flag, currentColor) end
+                pcall(callback, currentColor)
+            end
+
+            card.MouseButton1Click:Connect(function()
+                Window:Dialog({
+                    Title = "Select Color Preset",
+                    Content = "Pick a theme-synced or primary palette color:",
+                    Buttons = {
+                        { Text = "Gold", Variant = "Primary", Callback = function() setColor(Color3.fromRGB(247, 230, 185)) end },
+                        { Text = "Blue", Variant = "Primary", Callback = function() setColor(Color3.fromRGB(75, 130, 255)) end },
+                        { Text = "Emerald", Variant = "Primary", Callback = function() setColor(Color3.fromRGB(16, 185, 129)) end },
+                        { Text = "Rose", Variant = "Danger", Callback = function() setColor(Color3.fromRGB(244, 63, 94)) end },
+                        { Text = "Close", Variant = "Secondary" }
+                    }
+                })
+            end)
+
+            return {
+                Set = setColor,
+                GetValue = function() return currentColor end
+            }
+        end
+
+        return Tab
     end
 
     table.insert(HoshiUI.Windows, Window)
