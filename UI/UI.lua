@@ -452,7 +452,7 @@ function IconEngine.GetIcon(iconQuery)
     if not iconQuery or iconQuery == "" then return BuiltinIcons["sparkles"] end
     if type(iconQuery) ~= "string" then
         if tonumber(iconQuery) then
-            return "rbxthumb://type=Decal&id=" .. tostring(iconQuery) .. "&w=420&h=420"
+            return "rbxthumb://type=Asset&id=" .. tostring(iconQuery) .. "&w=420&h=420"
         end
         return BuiltinIcons["sparkles"]
     end
@@ -460,12 +460,12 @@ function IconEngine.GetIcon(iconQuery)
     if iconQuery:sub(1, 13) == "rbxassetid://" then
         local rawNum = iconQuery:sub(14)
         if tonumber(rawNum) and #rawNum >= 10 then
-            return "rbxthumb://type=Decal&id=" .. rawNum .. "&w=420&h=420"
+            return "rbxthumb://type=Asset&id=" .. rawNum .. "&w=420&h=420"
         end
         return iconQuery
     end
     if tonumber(iconQuery) then
-        return "rbxthumb://type=Decal&id=" .. iconQuery .. "&w=420&h=420"
+        return "rbxthumb://type=Asset&id=" .. iconQuery .. "&w=420&h=420"
     end
 
     local iconName = iconQuery
@@ -490,7 +490,7 @@ function IconEngine.ApplyDecal(imageLabel, rawQuery)
     local cleanNum = queryStr:gsub("rbxassetid://", ""):gsub("rbxthumb://type=%a+&id=", ""):gsub("&.*", ""):match("%d+")
     
     if cleanNum and #cleanNum >= 6 then
-        imageLabel.Image = "rbxthumb://type=Decal&id=" .. cleanNum .. "&w=420&h=420"
+        imageLabel.Image = "rbxthumb://type=Asset&id=" .. cleanNum .. "&w=420&h=420"
     else
         imageLabel.Image = IconEngine.GetIcon(rawQuery)
     end
@@ -1450,6 +1450,7 @@ function HoshiUI:CreateWindow(config)
         })
         Creator.AddCorner(floatingBtn, 12)
         local floatStroke = Creator.AddStroke(floatingBtn, "Accent", 1.5)
+        local floatScale = Creator.New("UIScale", { Scale = 1.0, Parent = floatingBtn })
 
         Creator.New("ImageLabel", {
             Name = "Shadow",
@@ -1484,16 +1485,57 @@ function HoshiUI:CreateWindow(config)
         end
 
         floatingBtn.MouseEnter:Connect(function()
-            Creator.Tween(floatingBtn, { Size = UDim2.new(0, 52, 0, 52), Position = UDim2.new(0, 22, 0.5, -26) }, 0.18, Enum.EasingStyle.Back)
-            Creator.Tween(floatStroke, { Color = Creator.GetThemeProperty("AccentHover"), Thickness = 2 }, 0.18)
+            Creator.Tween(floatScale, { Scale = 1.08 }, 0.15, Enum.EasingStyle.Quad)
+            Creator.Tween(floatStroke, { Color = Creator.GetThemeProperty("AccentHover"), Thickness = 2 }, 0.15)
         end)
         floatingBtn.MouseLeave:Connect(function()
-            Creator.Tween(floatingBtn, { Size = UDim2.new(0, 48, 0, 48), Position = UDim2.new(0, 24, 0.5, -24) }, 0.18, Enum.EasingStyle.Back)
-            Creator.Tween(floatStroke, { Color = Creator.GetThemeProperty("Accent"), Thickness = 1.5 }, 0.18)
+            Creator.Tween(floatScale, { Scale = 1.0 }, 0.15, Enum.EasingStyle.Quad)
+            Creator.Tween(floatStroke, { Color = Creator.GetThemeProperty("Accent"), Thickness = 1.5 }, 0.15)
         end)
 
-        Creator.MakeDraggable(floatingBtn, floatingBtn)
-        floatingBtn.MouseButton1Click:Connect(function() toggleWindow() end)
+        -- Smooth Dragging System with Click Differentiation
+        local isDragging = false
+        local dragStartPos = Vector2.new(0, 0)
+        local btnStartPos = floatingBtn.Position
+        local dragInput = nil
+        local hasMoved = false
+
+        Creator.AddSignal(floatingBtn.InputBegan, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isDragging = true
+                hasMoved = false
+                dragStartPos = input.Position
+                btnStartPos = floatingBtn.Position
+
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        isDragging = false
+                        if not hasMoved then
+                            toggleWindow()
+                        end
+                    end
+                end)
+            end
+        end)
+
+        Creator.AddSignal(floatingBtn.InputChanged, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+
+        Creator.AddSignal(UserInputService.InputChanged, function(input)
+            if input == dragInput and isDragging then
+                local delta = input.Position - dragStartPos
+                if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then
+                    hasMoved = true
+                end
+                local vp = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
+                local newX = math.clamp(btnStartPos.X.Offset + delta.X, 0, vp.X - 52)
+                local newY = math.clamp(btnStartPos.Y.Offset + delta.Y, 0, vp.Y - 52)
+                floatingBtn.Position = UDim2.new(btnStartPos.X.Scale, newX, btnStartPos.Y.Scale, newY)
+            end
+        end)
     end
 
     Creator.AddSignal(UserInputService.InputBegan, function(input, gpe)
