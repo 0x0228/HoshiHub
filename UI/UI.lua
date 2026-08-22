@@ -525,8 +525,15 @@ end
 function ConfigManager:Set(flag, value)
     if not flag then return end
     self.Flags[flag] = value
-    if self.Signals[flag] then self.Signals[flag]:Fire(value) end
+    if not self.Signals[flag] then self.Signals[flag] = Signal.new() end
+    self.Signals[flag]:Fire(value)
     if self.AutoSave then self:Save() end
+end
+
+function ConfigManager:OnChanged(flag, fn)
+    if not flag then return end
+    if not self.Signals[flag] then self.Signals[flag] = Signal.new() end
+    return self.Signals[flag]:Connect(fn)
 end
 
 function ConfigManager:Get(flag, defaultValue)
@@ -1710,6 +1717,16 @@ function HoshiUI:CreateWindow(config)
                 Creator.Tween(card, { BackgroundColor3 = Theme.CardBackground }, 0.15)
             end)
 
+            if flag then
+                ConfigManager:OnChanged(flag, function(newVal)
+                    if newVal ~= state then setToggle(newVal, false) end
+                end)
+            end
+
+            task.spawn(function()
+                pcall(callback, state)
+            end)
+
             return {
                 Set = setToggle,
                 GetValue = function() return state end
@@ -1864,6 +1881,16 @@ function HoshiUI:CreateWindow(config)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                     isDragging = false
                 end
+            end)
+
+            if flag then
+                ConfigManager:OnChanged(flag, function(newVal)
+                    if newVal ~= currentValue then updateSlider(newVal, false) end
+                end)
+            end
+
+            task.spawn(function()
+                pcall(callback, currentValue)
             end)
 
             return {
@@ -2047,6 +2074,19 @@ function HoshiUI:CreateWindow(config)
 
             headerBtn.MouseButton1Click:Connect(toggleDropdown)
 
+            if flag then
+                ConfigManager:OnChanged(flag, function(newVal)
+                    selected = newVal
+                    valLabel.Text = getDisplayString()
+                    rebuildOptions()
+                    pcall(callback, selected)
+                end)
+            end
+
+            task.spawn(function()
+                pcall(callback, selected)
+            end)
+
             return {
                 Set = function(val)
                     selected = val
@@ -2149,6 +2189,19 @@ function HoshiUI:CreateWindow(config)
                 pcall(callback, textBox.Text, enterPressed)
             end)
 
+            if flag then
+                ConfigManager:OnChanged(flag, function(newVal)
+                    textBox.Text = tostring(newVal)
+                    pcall(callback, textBox.Text, false)
+                end)
+            end
+
+            task.spawn(function()
+                if default and default ~= "" then
+                    pcall(callback, default, false)
+                end
+            end)
+
             return {
                 Set = function(newText)
                     textBox.Text = tostring(newText)
@@ -2244,6 +2297,13 @@ function HoshiUI:CreateWindow(config)
                 end
             end)
 
+            if flag then
+                ConfigManager:OnChanged(flag, function(newVal)
+                    boundKey = newVal
+                    bindBtn.Text = typeof(boundKey) == "EnumItem" and boundKey.Name or tostring(boundKey)
+                end)
+            end
+
             return {
                 Set = function(newKey)
                     boundKey = newKey
@@ -2337,6 +2397,16 @@ function HoshiUI:CreateWindow(config)
                         { Text = "Close", Variant = "Secondary" }
                     }
                 })
+            end)
+
+            if flag then
+                ConfigManager:OnChanged(flag, function(newVal)
+                    setColor(newVal)
+                end)
+            end
+
+            task.spawn(function()
+                pcall(callback, currentColor)
             end)
 
             return {

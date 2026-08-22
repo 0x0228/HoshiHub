@@ -41,14 +41,27 @@ local ControlsTab = Window:CreateTab({
 
 ControlsTab:CreateSection("Toggles & Switches", "Smooth animated pills with auto-save")
 
+local autoFarmThread = nil
 local Toggle1 = ControlsTab:CreateToggle({
     Title = "Auto Farm Mobs",
     Desc = "Target and defeat nearest enemies automatically",
     Default = false,
     Flag = "Demo_AutoFarm",
     Callback = function(state)
+        if autoFarmThread then
+            task.cancel(autoFarmThread)
+            autoFarmThread = nil
+        end
+        if state then
+            autoFarmThread = task.spawn(function()
+                while state do
+                    print("[HoshiHub AutoFarm] Active & Scanning mobs...")
+                    task.wait(3)
+                end
+            end)
+        end
         Window:Notify({
-            Title = "Toggle Changed",
+            Title = "Auto Farm",
             Content = "Auto Farm is now: " .. (state and "ENABLED" or "DISABLED"),
             Icon = state and "lucide:check" or "lucide:x",
             Type = state and "Success" or "Danger",
@@ -63,12 +76,20 @@ local Toggle2 = ControlsTab:CreateToggle({
     Default = true,
     Flag = "Demo_SilentAim",
     Callback = function(state)
-        print("[Showcase] Silent Aim:", state)
+        print("[HoshiHub] Silent Aim State:", state)
     end
 })
 
 ControlsTab:CreateDivider()
 ControlsTab:CreateSection("Sliders & Range Inputs", "Precision sliders with format strings and touch support")
+
+local function applyWalkSpeed(val)
+    local player = game.Players.LocalPlayer
+    if not player then return end
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hum = char and (char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 3))
+    if hum then hum.WalkSpeed = val end
+end
 
 local Slider1 = ControlsTab:CreateSlider({
     Title = "Player WalkSpeed",
@@ -80,11 +101,17 @@ local Slider1 = ControlsTab:CreateSlider({
     Format = "{value} studs/s",
     Flag = "Demo_WalkSpeed",
     Callback = function(val)
-        local char = game.Players.LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = val end
+        applyWalkSpeed(val)
     end
 })
+
+if game.Players.LocalPlayer then
+    game.Players.LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        local savedSpeed = Slider1.GetValue()
+        if savedSpeed then applyWalkSpeed(savedSpeed) end
+    end)
+end
 
 local Slider2 = ControlsTab:CreateSlider({
     Title = "Field of View (FOV)",
