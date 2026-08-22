@@ -351,7 +351,7 @@ textBox.Name = "KeyBox"
 textBox.Size = UDim2.new(1, -44, 1, 0)
 textBox.Position = UDim2.new(0, 38, 0, 0)
 textBox.BackgroundTransparency = 1
-textBox.PlaceholderText = "Enter Access Password (Default: 0228)..."
+textBox.PlaceholderText = "Enter Access Password..."
 textBox.PlaceholderColor3 = Theme.SubText
 textBox.TextColor3 = Theme.Text
 textBox.TextSize = 12
@@ -545,7 +545,7 @@ local function verifyPassword(inputKey)
         executeScript()
     else
         statusLabel.TextColor3 = Theme.Danger
-        statusLabel.Text = "Invalid Password! Check Discord or type: 0228"
+        statusLabel.Text = "Invalid Password! Check Discord"
         TweenService:Create(inputStroke, TweenInfo.new(0.15), { Color = Theme.Danger }):Play()
         task.wait(1.5)
         TweenService:Create(inputStroke, TweenInfo.new(0.2), { Color = Theme.Border }):Play()
