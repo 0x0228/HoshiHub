@@ -807,7 +807,6 @@ function DialogManager.Open(screenGui, dialogConfig)
     })
 
     local function closeDialog()
-        Creator.Tween(modalOverlay, { BackgroundTransparency = 1 }, 0.15)
         local anim = Creator.Tween(dScale, { Scale = 0.85 }, 0.15, Enum.EasingStyle.Sine)
         if anim then
             anim.Completed:Connect(function() modalOverlay:Destroy() end)
@@ -847,7 +846,6 @@ function DialogManager.Open(screenGui, dialogConfig)
         end)
     end
 
-    Creator.Tween(modalOverlay, { BackgroundTransparency = 0.5 }, 0.2)
     Creator.Tween(dScale, { Scale = 1 }, 0.2, Enum.EasingStyle.Back)
 end
 
