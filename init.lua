@@ -1,12 +1,12 @@
 -- ==============================================================================
 -- HoshiHub — Main Repository Entry Point & Auto-Loader
--- Load with: loadstring(game:HttpGet("https://raw.githubusercontent.com/0x0228/HoshiHub/master/init.lua?t=" .. tick()))()
+-- Load with: loadstring(game:HttpGet("https://raw.githubusercontent.com/0x0228/HoshiHub/master/init.lua"))()
 -- ==============================================================================
 
 local GITHUB_RAW = "https://raw.githubusercontent.com/0x0228/HoshiHub/master"
 
 local function loadHubModule(subPath)
-    local url = GITHUB_RAW .. "/" .. subPath .. "?t=" .. tick()
+    local url = GITHUB_RAW .. "/" .. subPath
     local success, content = pcall(function()
         return game:HttpGet(url)
     end)

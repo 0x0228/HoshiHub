@@ -4,7 +4,7 @@
 -- Loaded directly from GitHub: 0x0228/HoshiHub (master branch)
 -- ==============================================================================
 
-local HoshiUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/0x0228/HoshiHub/master/UI/UI.lua?t=" .. tick()))()
+local HoshiUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/0x0228/HoshiHub/master/UI/UI.lua"))()
 
 -- 1. Initialize Window with Mobile & Desktop Floating Toggle
 local Window = HoshiUI:CreateWindow({

@@ -508,7 +508,7 @@ local function executeScript()
     closeAnim.Completed:Connect(function()
         screenGui:Destroy()
         -- Load target script from GitHub repository
-        local url = LoaderConfig.GitHubRaw .. "/" .. targetScript .. "?t=" .. tick()
+        local url = LoaderConfig.GitHubRaw .. "/" .. targetScript
         local success, scriptContent = pcall(function()
             return game:HttpGet(url)
         end)
