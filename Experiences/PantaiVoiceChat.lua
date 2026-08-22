@@ -124,33 +124,58 @@ local function getActiveRod()
     return nil
 end
 
+local isWaitingForBite = false
+
 -- Function to solve minigame instantly
-local function solveMiniGame(tool, sessionId)
+local function autoSolveActiveMiniGame()
     pcall(function()
-        local rod = tool or getActiveRod()
-        local mg = rod and rod:FindFirstChild("MiniGame")
+        local rod = getActiveRod()
         local rodName = rod and rod.Name or "NormalRod"
+        local mgRemote = rod and rod:FindFirstChild("MiniGame")
         
-        -- Send SessionId payload if present
-        if sessionId and typeof(sessionId) == "string" then
-            if mg and mg:IsA("RemoteEvent") then
-                mg:FireServer(true, { SessionId = sessionId })
+        -- Align GUI indicator bar if present
+        local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+        local mgGui = pg and pg:FindFirstChild("MiniGameGUI")
+        if mgGui then
+            local barAttc = mgGui:FindFirstChild("Bar Attc")
+            local barDuration = mgGui:FindFirstChild("Bar Duration")
+            if barAttc then
+                local detec = barAttc:FindFirstChild("Detec")
+                local attc = barAttc:FindFirstChild("Attc")
+                if detec and attc then
+                    detec.Position = attc.Position
+                end
             end
-            if GlobalMiniGameRemote and GlobalMiniGameRemote:IsA("RemoteEvent") then
-                GlobalMiniGameRemote:FireServer(true, { SessionId = sessionId })
+            if barDuration then
+                local barVol = barDuration:FindFirstChild("BarVol")
+                if barVol then
+                    barVol.Size = UDim2.new(1, 0, 1, 0)
+                end
             end
         end
 
-        -- Standard solve events
-        if mg and mg:IsA("RemoteEvent") then
-            mg:FireServer(true)
-            mg:FireServer(100)
+        -- Fire Server Win / Completion Events
+        if currentSessionId and typeof(currentSessionId) == "string" then
+            if mgRemote and mgRemote:IsA("RemoteEvent") then
+                mgRemote:FireServer(true, { SessionId = currentSessionId })
+                mgRemote:FireServer("Complete", { SessionId = currentSessionId })
+            end
+            if GlobalMiniGameRemote and GlobalMiniGameRemote:IsA("RemoteEvent") then
+                GlobalMiniGameRemote:FireServer(true, { SessionId = currentSessionId })
+            end
+        end
+
+        if mgRemote and mgRemote:IsA("RemoteEvent") then
+            mgRemote:FireServer(true)
+            mgRemote:FireServer("Complete")
         end
         if MiniGameCompleteRemote and MiniGameCompleteRemote:IsA("RemoteEvent") then
             MiniGameCompleteRemote:FireServer(true, rodName)
+            MiniGameCompleteRemote:FireServer("Complete", rodName)
         end
         if GlobalMiniGameRemote and GlobalMiniGameRemote:IsA("RemoteEvent") then
             GlobalMiniGameRemote:FireServer(true, rodName)
+            GlobalMiniGameRemote:FireServer("Complete", rodName)
         end
     end)
 end
@@ -161,12 +186,13 @@ if GlobalMiniGameRemote and GlobalMiniGameRemote:IsA("RemoteEvent") then
         local action = type(arg1) == "table" and (arg1.Action or arg1.action or arg1.Status or arg1.status or arg1[1]) or arg1
         local payload = type(arg1) == "table" and arg1 or arg2
         if action == "Start" or type(payload) == "table" then
+            isWaitingForBite = false
             if type(payload) == "table" and (payload.SessionId or payload.sessionId) then
                 currentSessionId = payload.SessionId or payload.sessionId
             end
             if State.AutoFish and State.InstantReel then
-                task.wait(0.05)
-                solveMiniGame(getActiveRod(), currentSessionId)
+                task.wait(0.08)
+                autoSolveActiveMiniGame()
             end
         end
     end)
@@ -184,12 +210,13 @@ local function hookRodRemotes(rod)
             local action = type(arg1) == "table" and (arg1.Action or arg1.action or arg1.Status or arg1.status or arg1[1]) or arg1
             local payload = type(arg1) == "table" and arg1 or arg2
             if action == "Start" or type(payload) == "table" then
+                isWaitingForBite = false
                 if type(payload) == "table" and (payload.SessionId or payload.sessionId) then
                     currentSessionId = payload.SessionId or payload.sessionId
                 end
                 if State.AutoFish and State.InstantReel then
-                    task.wait(0.05)
-                    solveMiniGame(rod, currentSessionId)
+                    task.wait(0.08)
+                    autoSolveActiveMiniGame()
                 end
             end
         end)
@@ -222,66 +249,103 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     scanAndHookTools()
 end)
 
--- ==============================================================================
--- 3. FISHING AUTOMATION THREAD
--- ==============================================================================
-task.spawn(function()
-    while true do
-        task.wait(State.CastDelay)
-        if State.AutoFish then
-            pcall(function()
-                local rod = getActiveRod()
-                if rod then
-                    -- 1. Equip if unequipped
-                    if rod.Parent ~= LocalPlayer.Character then
-                        local hum = getHumanoid()
-                        if hum then hum:EquipTool(rod) end
-                        task.wait(0.25)
+-- Hook PlayerGui for MiniGameGUI lifecycle
+local function hookPlayerGuiMiniGame()
+    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if not pg then return end
+    
+    pg.ChildAdded:Connect(function(child)
+        if child.Name == "MiniGameGUI" then
+            isWaitingForBite = false
+            if State.AutoFish and State.InstantReel then
+                task.spawn(function()
+                    for i = 1, 6 do
+                        task.wait(0.06)
+                        autoSolveActiveMiniGame()
                     end
-
-                    -- 2. Fire CastToPosition with nil (standard game expectation)
-                    local castRemote = rod:FindFirstChild("CastToPosition")
-                    if castRemote and castRemote:IsA("RemoteEvent") then
-                        castRemote:FireServer(nil)
-                    end
-                    if CastRodRemote and CastRodRemote:IsA("RemoteEvent") then
-                        CastRodRemote:FireServer(nil, rod.Name)
-                    end
-
-                    -- Activate tool
-                    pcall(function() rod:Activate() end)
-
-                    -- 3. Solve MiniGame instantly
-                    if State.InstantReel then
-                        task.wait(0.35)
-                        solveMiniGame(rod, currentSessionId)
-                    end
-
-                    -- 4. Auto-sell if enabled
-                    if State.AutoSell then
-                        task.wait(0.1)
-                        if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
-                            JualIkanRemote:FireServer("SellAll", "SellAll")
-                        end
-                        if SellFishRemote and SellFishRemote:IsA("RemoteEvent") then
-                            SellFishRemote:FireServer()
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- Continuous backup solver thread
-task.spawn(function()
-    while true do
-        task.wait(0.4)
-        if State.AutoFish and State.InstantReel then
-            local rod = getActiveRod()
-            if rod then
-                solveMiniGame(rod, currentSessionId)
+                end)
             end
+        end
+    end)
+    
+    pg.ChildRemoved:Connect(function(child)
+        if child.Name == "MiniGameGUI" then
+            isWaitingForBite = false
+            if State.AutoFish and State.AutoSell then
+                task.spawn(function()
+                    task.wait(0.2)
+                    if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
+                        JualIkanRemote:FireServer("SellAll", "SellAll")
+                    end
+                    if SellFishRemote and SellFishRemote:IsA("RemoteEvent") then
+                        SellFishRemote:FireServer()
+                    end
+                end)
+            end
+        end
+    end)
+end
+hookPlayerGuiMiniGame()
+
+-- ==============================================================================
+-- 3. FISHING AUTOMATION THREAD (ROBUST STATE MACHINE)
+-- ==============================================================================
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if State.AutoFish then
+            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            local mgGui = pg and pg:FindFirstChild("MiniGameGUI")
+            
+            if mgGui then
+                -- Minigame is currently active on screen!
+                isWaitingForBite = false
+                if State.InstantReel then
+                    autoSolveActiveMiniGame()
+                end
+            else
+                -- No minigame active on screen. Check if we need to cast
+                if not isWaitingForBite then
+                    isWaitingForBite = true
+                    task.wait(State.CastDelay)
+                    
+                    pcall(function()
+                        local rod = getActiveRod()
+                        if rod then
+                            -- 1. Ensure Rod is equipped
+                            if rod.Parent ~= LocalPlayer.Character then
+                                local hum = getHumanoid()
+                                if hum then hum:EquipTool(rod) end
+                                task.wait(0.3)
+                            end
+
+                            -- 2. Fire Cast
+                            local castRemote = rod:FindFirstChild("CastToPosition")
+                            if castRemote and castRemote:IsA("RemoteEvent") then
+                                castRemote:FireServer(nil)
+                            end
+                            if CastRodRemote and CastRodRemote:IsA("RemoteEvent") then
+                                CastRodRemote:FireServer(nil, rod.Name)
+                            end
+
+                            -- Activate tool
+                            pcall(function() rod:Activate() end)
+                        else
+                            isWaitingForBite = false
+                        end
+                    end)
+                    
+                    -- Safety watchdog: If no fish bites within 10 seconds, reset wait flag
+                    task.spawn(function()
+                        task.wait(10)
+                        if isWaitingForBite and not (pg and pg:FindFirstChild("MiniGameGUI")) then
+                            isWaitingForBite = false
+                        end
+                    end)
+                end
+            end
+        else
+            isWaitingForBite = false
         end
     end
 end)
