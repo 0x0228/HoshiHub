@@ -593,11 +593,22 @@ function IconEngine.LoadSet(setName) return BuiltinIcons end
 function IconEngine.GetIcon(iconQuery)
     if not iconQuery or iconQuery == "" then return BuiltinIcons["sparkles"] end
     if type(iconQuery) ~= "string" then
-        if tonumber(iconQuery) then return "rbxassetid://" .. tostring(iconQuery) end
+        if tonumber(iconQuery) then
+            return "rbxthumb://type=Asset&id=" .. tostring(iconQuery) .. "&w=420&h=420"
+        end
         return BuiltinIcons["sparkles"]
     end
-    if iconQuery:sub(1, 13) == "rbxassetid://" then return iconQuery end
-    if tonumber(iconQuery) then return "rbxassetid://" .. iconQuery end
+    if iconQuery:sub(1, 12) == "rbxthumb://" then return iconQuery end
+    if iconQuery:sub(1, 13) == "rbxassetid://" then
+        local rawNum = iconQuery:sub(14)
+        if tonumber(rawNum) and #rawNum >= 11 then
+            return "rbxthumb://type=Asset&id=" .. rawNum .. "&w=420&h=420"
+        end
+        return iconQuery
+    end
+    if tonumber(iconQuery) then
+        return "rbxthumb://type=Asset&id=" .. iconQuery .. "&w=420&h=420"
+    end
 
     local iconName = iconQuery
     if iconQuery:find(":") then
@@ -886,7 +897,9 @@ function NotificationManager.Notify(holder, notifConfig, theme)
     local content = notifConfig.Content or ""
     local notifType = notifConfig.Type or "Info"
     local duration = notifConfig.Duration or 3.5
-    local icon = notifConfig.Icon and IconEngine.GetIcon(notifConfig.Icon) or IconEngine.GetIcon("bell")
+    local rawIcon = notifConfig.Icon or "bell"
+    local icon = IconEngine.GetIcon(rawIcon)
+    local isCustomNotif = (type(rawIcon) == "number" or tonumber(rawIcon) or tostring(rawIcon):find("^rbxthumb://") or (tostring(rawIcon):find("^rbxassetid://") and tonumber(tostring(rawIcon):sub(14)))) ~= nil
 
     local typeColor = theme.Accent
     if notifType == "Success" then typeColor = theme.Success
@@ -910,15 +923,19 @@ function NotificationManager.Notify(holder, notifConfig, theme)
         Parent = notifFrame
     })
 
-    Creator.New("ImageLabel", {
+    local notifIco = Creator.New("ImageLabel", {
         Name = "Icon",
         Size = UDim2.new(0, 18, 0, 18),
         Position = UDim2.new(0, 12, 0, 12),
         BackgroundTransparency = 1,
         Image = icon,
-        ImageColor3 = typeColor,
+        ImageColor3 = isCustomNotif and Color3.fromRGB(255, 255, 255) or typeColor,
+        ScaleType = Enum.ScaleType.Fit,
         Parent = notifFrame
     })
+    if isCustomNotif then
+        Creator.AddCorner(notifIco, 4)
+    end
 
     Creator.New("TextLabel", {
         Name = "Title",
