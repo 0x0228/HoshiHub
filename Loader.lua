@@ -342,7 +342,7 @@ local keyIcon = Instance.new("ImageLabel")
 keyIcon.Size = UDim2.new(0, 18, 0, 18)
 keyIcon.Position = UDim2.new(0, 12, 0.5, -9)
 keyIcon.BackgroundTransparency = 1
-keyIcon.Image = "rbxassetid://10709798779" -- lock icon
+keyIcon.Image = "rbxassetid://7733964719" -- Lucide Key icon
 keyIcon.ImageColor3 = Theme.SubText
 keyIcon.Parent = inputContainer
 
