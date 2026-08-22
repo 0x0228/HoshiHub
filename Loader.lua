@@ -34,7 +34,7 @@ local LoaderConfig = {
 local GameTable = {
     [126463495082631] = {
         Name = "Pantai Voice Chat",
-        Script = "UI/Example.lua", -- Can be routed to Experiences/PantaiVoiceChat.lua
+        Script = "Experiences/PantaiVoiceChat.lua", -- Can be routed to Experiences/PantaiVoiceChat.lua
     },
     ["Universal"] = {
         Name = "Universal Feature Showcase",
