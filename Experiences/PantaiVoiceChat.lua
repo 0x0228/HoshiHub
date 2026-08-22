@@ -23,6 +23,17 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
+-- Fishing System Remotes Reference
+local FishingSystem = ReplicatedStorage:WaitForChild("FishingSystem", 10)
+local Events = FishingSystem and FishingSystem:FindFirstChild("Events")
+local Remotes = FishingSystem and FishingSystem:FindFirstChild("Remotes")
+
+local CastRodRemote = Events and Events:FindFirstChild("CastRod")
+local MiniGameCompleteRemote = Events and Events:FindFirstChild("MiniGameComplete")
+local SellFishRemote = Events and Events:FindFirstChild("SellFish")
+local GlobalMiniGameRemote = Remotes and Remotes:FindFirstChild("MiniGame")
+local JualIkanRemote = ReplicatedStorage:FindFirstChild("JualIkanRemote")
+
 -- ==============================================================================
 -- 1. INITIALIZE WINDOW
 -- ==============================================================================
@@ -55,8 +66,9 @@ local State = {
     -- Fishing
     AutoFish = false,
     InstantReel = true,
-    CastDelay = 1.2,
-    SelectedRod = "NormalRod",
+    AutoSell = false,
+    CastDelay = 1.0,
+    SelectedRod = "ForestRod",
     
     -- Player
     WalkSpeed = 16,
@@ -66,7 +78,6 @@ local State = {
     Fly = false,
     FlySpeed = 50,
     AntiAFK = true,
-    AntiJahil = false,
     
     -- Visuals
     Fullbright = false,
@@ -74,6 +85,8 @@ local State = {
     ESPColor = Color3.fromRGB(247, 230, 185),
     FOV = 70,
 }
+
+local currentSessionId = nil
 
 -- Character Utility Helper
 local function getCharacter()
@@ -95,7 +108,7 @@ local function getActiveRod()
     local char = LocalPlayer.Character
     if char then
         for _, item in ipairs(char:GetChildren()) do
-            if item:IsA("Tool") and (item.Name:find("Rod") or item:FindFirstChild("CastToPosition")) then
+            if item:IsA("Tool") and (item.Name:find("Rod") or item:FindFirstChild("CastToPosition") or item:FindFirstChild("MiniGame")) then
                 return item
             end
         end
@@ -103,13 +116,111 @@ local function getActiveRod()
     local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
     if bp then
         for _, item in ipairs(bp:GetChildren()) do
-            if item:IsA("Tool") and (item.Name:find("Rod") or item:FindFirstChild("CastToPosition")) then
+            if item:IsA("Tool") and (item.Name:find("Rod") or item:FindFirstChild("CastToPosition") or item:FindFirstChild("MiniGame")) then
                 return item
             end
         end
     end
     return nil
 end
+
+-- Function to solve minigame instantly
+local function solveMiniGame(tool, sessionId)
+    pcall(function()
+        local rod = tool or getActiveRod()
+        local mg = rod and rod:FindFirstChild("MiniGame")
+        local rodName = rod and rod.Name or "NormalRod"
+        
+        -- Send SessionId payload if present
+        if sessionId and typeof(sessionId) == "string" then
+            if mg and mg:IsA("RemoteEvent") then
+                mg:FireServer(true, { SessionId = sessionId })
+            end
+            if GlobalMiniGameRemote and GlobalMiniGameRemote:IsA("RemoteEvent") then
+                GlobalMiniGameRemote:FireServer(true, { SessionId = sessionId })
+            end
+        end
+
+        -- Standard solve events
+        if mg and mg:IsA("RemoteEvent") then
+            mg:FireServer(true)
+            mg:FireServer(100)
+        end
+        if MiniGameCompleteRemote and MiniGameCompleteRemote:IsA("RemoteEvent") then
+            MiniGameCompleteRemote:FireServer(true, rodName)
+        end
+        if GlobalMiniGameRemote and GlobalMiniGameRemote:IsA("RemoteEvent") then
+            GlobalMiniGameRemote:FireServer(true, rodName)
+        end
+    end)
+end
+
+-- Hook global minigame remote event
+if GlobalMiniGameRemote and GlobalMiniGameRemote:IsA("RemoteEvent") then
+    GlobalMiniGameRemote.OnClientEvent:Connect(function(arg1, arg2)
+        local action = type(arg1) == "table" and (arg1.Action or arg1.action or arg1.Status or arg1.status or arg1[1]) or arg1
+        local payload = type(arg1) == "table" and arg1 or arg2
+        if action == "Start" or type(payload) == "table" then
+            if type(payload) == "table" and (payload.SessionId or payload.sessionId) then
+                currentSessionId = payload.SessionId or payload.sessionId
+            end
+            if State.AutoFish and State.InstantReel then
+                task.wait(0.05)
+                solveMiniGame(getActiveRod(), currentSessionId)
+            end
+        end
+    end)
+end
+
+-- Hook individual rod remote events
+local hookedRods = {}
+local function hookRodRemotes(rod)
+    if not rod or hookedRods[rod] then return end
+    hookedRods[rod] = true
+    
+    local mg = rod:FindFirstChild("MiniGame") or rod:WaitForChild("MiniGame", 2)
+    if mg and mg:IsA("RemoteEvent") then
+        mg.OnClientEvent:Connect(function(arg1, arg2)
+            local action = type(arg1) == "table" and (arg1.Action or arg1.action or arg1.Status or arg1.status or arg1[1]) or arg1
+            local payload = type(arg1) == "table" and arg1 or arg2
+            if action == "Start" or type(payload) == "table" then
+                if type(payload) == "table" and (payload.SessionId or payload.sessionId) then
+                    currentSessionId = payload.SessionId or payload.sessionId
+                end
+                if State.AutoFish and State.InstantReel then
+                    task.wait(0.05)
+                    solveMiniGame(rod, currentSessionId)
+                end
+            end
+        end)
+    end
+end
+
+-- Initial tool hooks
+local function scanAndHookTools()
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if bp then
+        for _, item in ipairs(bp:GetChildren()) do
+            if item:IsA("Tool") then hookRodRemotes(item) end
+        end
+        bp.ChildAdded:Connect(function(item)
+            if item:IsA("Tool") then hookRodRemotes(item) end
+        end)
+    end
+    if LocalPlayer.Character then
+        for _, item in ipairs(LocalPlayer.Character:GetChildren()) do
+            if item:IsA("Tool") then hookRodRemotes(item) end
+        end
+        LocalPlayer.Character.ChildAdded:Connect(function(item)
+            if item:IsA("Tool") then hookRodRemotes(item) end
+        end)
+    end
+end
+scanAndHookTools()
+LocalPlayer.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    scanAndHookTools()
+end)
 
 -- ==============================================================================
 -- 3. FISHING AUTOMATION THREAD
@@ -121,27 +232,39 @@ task.spawn(function()
             pcall(function()
                 local rod = getActiveRod()
                 if rod then
-                    -- Equip if in backpack
+                    -- 1. Equip if unequipped
                     if rod.Parent ~= LocalPlayer.Character then
                         local hum = getHumanoid()
                         if hum then hum:EquipTool(rod) end
-                        task.wait(0.3)
+                        task.wait(0.25)
                     end
 
-                    local hrp = getRootPart()
+                    -- 2. Fire CastToPosition with nil (standard game expectation)
                     local castRemote = rod:FindFirstChild("CastToPosition")
-                    local miniGameRemote = rod:FindFirstChild("MiniGame")
+                    if castRemote and castRemote:IsA("RemoteEvent") then
+                        castRemote:FireServer(nil)
+                    end
+                    if CastRodRemote and CastRodRemote:IsA("RemoteEvent") then
+                        CastRodRemote:FireServer(nil, rod.Name)
+                    end
 
-                    if castRemote and hrp then
-                        -- Cast in front of player
-                        local castTarget = hrp.Position + (hrp.CFrame.LookVector * 18) + Vector3.new(0, -3, 0)
-                        castRemote:FireServer(castTarget)
-                        
-                        -- Wait for bite & solve minigame
-                        if State.InstantReel and miniGameRemote then
-                            task.wait(0.4)
-                            miniGameRemote:FireServer(true)
-                            miniGameRemote:FireServer(100)
+                    -- Activate tool
+                    pcall(function() rod:Activate() end)
+
+                    -- 3. Solve MiniGame instantly
+                    if State.InstantReel then
+                        task.wait(0.35)
+                        solveMiniGame(rod, currentSessionId)
+                    end
+
+                    -- 4. Auto-sell if enabled
+                    if State.AutoSell then
+                        task.wait(0.1)
+                        if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
+                            JualIkanRemote:FireServer("SellAll", "SellAll")
+                        end
+                        if SellFishRemote and SellFishRemote:IsA("RemoteEvent") then
+                            SellFishRemote:FireServer()
                         end
                     end
                 end
@@ -150,20 +273,15 @@ task.spawn(function()
     end
 end)
 
--- Instant Hook Listener on MiniGame Remote
+-- Continuous backup solver thread
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(0.4)
         if State.AutoFish and State.InstantReel then
-            pcall(function()
-                local rod = getActiveRod()
-                if rod then
-                    local mg = rod:FindFirstChild("MiniGame")
-                    if mg and mg:IsA("RemoteEvent") then
-                        mg:FireServer(true)
-                    end
-                end
-            end)
+            local rod = getActiveRod()
+            if rod then
+                solveMiniGame(rod, currentSessionId)
+            end
         end
     end
 end)
@@ -341,17 +459,17 @@ LocalPlayer.Idled:Connect(function()
 end)
 
 -- ==============================================================================
--- 8. MAP LANDMARKS & LOCATIONS
+-- 8. MAP LANDMARKS & LOCATIONS (ACCURATE GAME COORDS)
 -- ==============================================================================
 local Locations = {
-    ["Dermaga Mancing (Fishing Pier)"] = Vector3.new(18.5, 4.2, -85.6),
-    ["Air Terjun (Waterfall)"] = Vector3.new(-120.4, 8.5, 142.1),
-    ["Gazebo Pantai Utama"] = Vector3.new(45.2, 5.0, 30.8),
-    ["Area Batu Karang"] = Vector3.new(98.6, 6.2, -145.3),
-    ["Mesin ATM / Bank"] = Vector3.new(-15.8, 4.5, 65.2),
-    ["Meja Catur & Game"] = Vector3.new(-65.0, 5.1, -12.4),
-    ["Panggung Top Donatur"] = Vector3.new(12.0, 7.5, 110.0),
-    ["Spot VIP Lounge"] = Vector3.new(-88.5, 12.0, 85.0),
+    ["Dermaga Mancing (Fishing Pier)"] = Vector3.new(1150, 114, -990),
+    ["Air Terjun (Waterfall)"] = Vector3.new(1009, 134, -791),
+    ["Gazebo Pantai Utama"] = Vector3.new(1147, 116, -1080),
+    ["Area Batu Karang"] = Vector3.new(1174, 112, -965),
+    ["Mesin ATM / Bank"] = Vector3.new(1337, 118, -900),
+    ["Meja Catur 1"] = Vector3.new(1442, 139, -1239),
+    ["Meja Catur 2"] = Vector3.new(1416, 139, -1233),
+    ["Panggung Top Donatur"] = Vector3.new(1493, 77, -795),
 }
 
 -- ==============================================================================
@@ -370,7 +488,7 @@ TabFishing:CreateToggle({
     Callback = function(val)
         State.AutoFish = val
         if val then
-            Window:Notify({ Title = "Auto Fish", Content = "Auto-fishing started. Pegang joran atau biarkan script equip otomatis.", Duration = 3 })
+            Window:Notify({ Title = "Auto Fish", Content = "Auto-fishing aktif! Memancing dan menyelesaikan minigame otomatis.", Duration = 3 })
         end
     end
 })
@@ -384,11 +502,20 @@ TabFishing:CreateToggle({
     end
 })
 
+TabFishing:CreateToggle({
+    Title = "Auto-Sell Caught Fish (Jual Otomatis)",
+    Default = false,
+    Flag = "AutoSell",
+    Callback = function(val)
+        State.AutoSell = val
+    end
+})
+
 TabFishing:CreateSlider({
     Title = "Cast Delay Speed",
     Min = 0.5,
-    Max = 4.0,
-    Default = 1.2,
+    Max = 3.0,
+    Default = 1.0,
     Increment = 0.1,
     ValueName = "sec",
     Flag = "CastDelay",
@@ -397,12 +524,51 @@ TabFishing:CreateSlider({
     end
 })
 
-TabFishing:CreateSection("Inventory & Rod Actions")
+TabFishing:CreateSection("Selling & Inventory")
 
-TabFishing:CreateDropdown({
+TabFishing:CreateButton({
+    Title = "Sell All Fish Now (Jual Semua Ikan)",
+    Callback = function()
+        pcall(function()
+            if JualIkanRemote and JualIkanRemote:IsA("RemoteEvent") then
+                JualIkanRemote:FireServer("SellAll", "SellAll")
+            end
+            if SellFishRemote and SellFishRemote:IsA("RemoteEvent") then
+                SellFishRemote:FireServer()
+            end
+        end)
+        Window:Notify({ Title = "Fish Sold", Content = "Mengirim sinyal jual semua ikan ke server.", Duration = 2 })
+    end
+})
+
+local function getOwnedRods()
+    local rods = {}
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    local char = LocalPlayer.Character
+    if bp then
+        for _, item in ipairs(bp:GetChildren()) do
+            if item:IsA("Tool") and (item.Name:find("Rod") or item:FindFirstChild("CastToPosition")) then
+                table.insert(rods, item.Name)
+            end
+        end
+    end
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if item:IsA("Tool") and (item.Name:find("Rod") or item:FindFirstChild("CastToPosition")) then
+                table.insert(rods, item.Name)
+            end
+        end
+    end
+    if #rods == 0 then
+        rods = { "NormalRod", "ForestRod", "LovingRod", "AngelRod", "CrystalizedRod", "SeaRod", "ZeusRod", "ZombieRod", "VIPRod" }
+    end
+    return rods
+end
+
+local RodDropdown = TabFishing:CreateDropdown({
     Title = "Select Target Rod",
-    Values = { "NormalRod", "LovingRod", "ForestRod", "AngelRod", "CrystalizedRod", "SeaRod", "ZeusRod", "ZombieRod", "VIPRod" },
-    Default = "NormalRod",
+    Values = getOwnedRods(),
+    Default = State.SelectedRod,
     Flag = "SelectedRod",
     Callback = function(val)
         State.SelectedRod = val
@@ -415,15 +581,24 @@ TabFishing:CreateButton({
         local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
         local char = LocalPlayer.Character
         local hum = getHumanoid()
-        if bp and hum then
-            local targetTool = bp:FindFirstChild(State.SelectedRod) or (char and char:FindFirstChild(State.SelectedRod))
+        if hum then
+            local targetTool = (bp and bp:FindFirstChild(State.SelectedRod)) or (char and char:FindFirstChild(State.SelectedRod))
             if targetTool then
                 hum:EquipTool(targetTool)
                 Window:Notify({ Title = "Inventory", Content = "Equipped: " .. targetTool.Name, Duration = 2 })
             else
-                Window:Notify({ Title = "Not Found", Content = State.SelectedRod .. " tidak ditemukan di Backpack.", Duration = 3 })
+                Window:Notify({ Title = "Not Found", Content = State.SelectedRod .. " tidak ada di Backpack.", Duration = 3 })
             end
         end
+    end
+})
+
+TabFishing:CreateButton({
+    Title = "Refresh Owned Rods List",
+    Callback = function()
+        local updated = getOwnedRods()
+        RodDropdown:SetValues(updated)
+        Window:Notify({ Title = "Refreshed", Content = "Ditemukan " .. #updated .. " joran pancing.", Duration = 2 })
     end
 })
 
