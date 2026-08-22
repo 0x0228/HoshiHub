@@ -771,7 +771,7 @@ TabPlayer:CreateSlider({
 })
 
 -- TAB 3: TELEPORTS (LOKASI PANTAI)
-local TabTeleport = Window:CreateTab({ Title = "Teleports", Icon = "target" })
+local TabTeleport = Window:CreateTab({ Title = "Teleports", Icon = "map-pin" })
 
 TabTeleport:CreateSection("Beach Landmarks")
 
@@ -849,6 +849,16 @@ TabTeleport:CreateButton({
         Window:Notify({ Title = "Refreshed", Content = "Player list updated (" .. #updated .. " players).", Duration = 2 })
     end
 })
+
+-- Auto-sync player list
+Players.PlayerAdded:Connect(function()
+    task.wait(0.5)
+    pcall(function() PlayerDropdown:SetValues(getPlayerNames()) end)
+end)
+Players.PlayerRemoving:Connect(function()
+    task.wait(0.5)
+    pcall(function() PlayerDropdown:SetValues(getPlayerNames()) end)
+end)
 
 -- TAB 4: VISUALS & ESP
 local TabVisuals = Window:CreateTab({ Title = "Visuals", Icon = "eye" })

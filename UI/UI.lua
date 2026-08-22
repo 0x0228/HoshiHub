@@ -213,58 +213,60 @@ local Theme = {
 -- 4. LUCIDE ICONS & DECAL RESOLVER ENGINE
 -- ==============================================================================
 local BuiltinIcons = {
-    ["sliders"] = "rbxassetid://10734963400",
-    ["sliders-horizontal"] = "rbxassetid://10734963191",
-    ["settings"] = "rbxassetid://10734950309",
-    ["home"] = "rbxassetid://10723407389",
-    ["palette"] = "rbxassetid://10723387841",
-    ["bell"] = "rbxassetid://10709775704",
-    ["bell-ring"] = "rbxassetid://10709775560",
-    ["x"] = "rbxassetid://9886659671",
-    ["close"] = "rbxassetid://9886659671",
-    ["minus"] = "rbxassetid://10734896206",
-    ["dash"] = "rbxassetid://10734896206",
-    ["chevron-up"] = "rbxassetid://9886659276",
-    ["minimize"] = "rbxassetid://10734896206",
-    ["chevron-down"] = "rbxassetid://10709790948",
-    ["chevron-left"] = "rbxassetid://10709791024",
-    ["chevron-right"] = "rbxassetid://10709791175",
-    ["check"] = "rbxassetid://10709790644",
-    ["sparkles"] = "rbxassetid://10734974297",
-    ["box"] = "rbxassetid://10709782497",
-    ["shield"] = "rbxassetid://10734951847",
-    ["shield-check"] = "rbxassetid://10734952136",
-    ["shield-alert"] = "rbxassetid://10734952044",
-    ["sword"] = "rbxassetid://10734975486",
-    ["swords"] = "rbxassetid://10734975692",
-    ["zap"] = "rbxassetid://10709819149",
-    ["flame"] = "rbxassetid://10723376114",
-    ["target"] = "rbxassetid://10734979144",
-    ["eye"] = "rbxassetid://10709795498",
-    ["heart"] = "rbxassetid://10709797316",
-    ["terminal"] = "rbxassetid://10734982144",
-    ["code"] = "rbxassetid://10709793413",
-    ["cpu"] = "rbxassetid://10709794132",
-    ["database"] = "rbxassetid://10709794585",
-    ["folder"] = "rbxassetid://10709796387",
-    ["file"] = "rbxassetid://10709795643",
-    ["trash"] = "rbxassetid://10734983637",
-    ["copy"] = "rbxassetid://10709793917",
-    ["user"] = "rbxassetid://10734988677",
-    ["users"] = "rbxassetid://10734989047",
-    ["play"] = "rbxassetid://10709801822",
-    ["pause"] = "rbxassetid://10709801588",
-    ["info"] = "rbxassetid://10709797960",
-    ["alert-triangle"] = "rbxassetid://10709753149",
-    ["alert-circle"] = "rbxassetid://10709752996",
-    ["lock"] = "rbxassetid://10709798779",
-    ["unlock"] = "rbxassetid://10734987768",
-    ["key"] = "rbxassetid://10709798082",
-    ["sun"] = "rbxassetid://10734975252",
-    ["moon"] = "rbxassetid://10709800652",
-    ["maximize"] = "rbxassetid://9886659406",
-    ["menu"] = "rbxassetid://10709799716",
-    ["search"] = "rbxassetid://10709802875",
+    ["sliders"] = "rbxassetid://7734053495",
+    ["sliders-horizontal"] = "rbxassetid://7734053495",
+    ["settings"] = "rbxassetid://7734053495",
+    ["home"] = "rbxassetid://7733798950",
+    ["palette"] = "rbxassetid://7733964893",
+    ["bell"] = "rbxassetid://7733771811",
+    ["bell-ring"] = "rbxassetid://7733771811",
+    ["x"] = "rbxassetid://7734091286",
+    ["close"] = "rbxassetid://7734091286",
+    ["minus"] = "rbxassetid://7733964923",
+    ["dash"] = "rbxassetid://7733964923",
+    ["chevron-up"] = "rbxassetid://7733773781",
+    ["minimize"] = "rbxassetid://7733964923",
+    ["chevron-down"] = "rbxassetid://7733773673",
+    ["chevron-left"] = "rbxassetid://7733773602",
+    ["chevron-right"] = "rbxassetid://7733773708",
+    ["check"] = "rbxassetid://7733773094",
+    ["sparkles"] = "rbxassetid://7734053426",
+    ["box"] = "rbxassetid://7733771811",
+    ["shield"] = "rbxassetid://7734053146",
+    ["shield-check"] = "rbxassetid://7734053146",
+    ["shield-alert"] = "rbxassetid://7734053146",
+    ["sword"] = "rbxassetid://7734058284",
+    ["swords"] = "rbxassetid://7734058284",
+    ["zap"] = "rbxassetid://7734094907",
+    ["flame"] = "rbxassetid://7733785233",
+    ["target"] = "rbxassetid://7733919783",
+    ["eye"] = "rbxassetid://7733774602",
+    ["heart"] = "rbxassetid://7733798851",
+    ["terminal"] = "rbxassetid://7734088089",
+    ["code"] = "rbxassetid://7734088089",
+    ["cpu"] = "rbxassetid://7734088089",
+    ["database"] = "rbxassetid://7733786283",
+    ["folder"] = "rbxassetid://7733786283",
+    ["file"] = "rbxassetid://7733785108",
+    ["trash"] = "rbxassetid://7734091563",
+    ["copy"] = "rbxassetid://7733781297",
+    ["user"] = "rbxassetid://7733992424",
+    ["users"] = "rbxassetid://7733993147",
+    ["play"] = "rbxassetid://7733964719",
+    ["pause"] = "rbxassetid://7733964719",
+    ["info"] = "rbxassetid://7733799901",
+    ["alert-triangle"] = "rbxassetid://7733799901",
+    ["alert-circle"] = "rbxassetid://7733799901",
+    ["lock"] = "rbxassetid://7733954760",
+    ["unlock"] = "rbxassetid://7734092493",
+    ["key"] = "rbxassetid://7733964719",
+    ["sun"] = "rbxassetid://7734057866",
+    ["moon"] = "rbxassetid://7733964988",
+    ["maximize"] = "rbxassetid://7733773781",
+    ["menu"] = "rbxassetid://7734053495",
+    ["search"] = "rbxassetid://7734052925",
+    ["map-pin"] = "rbxassetid://7733955511",
+    ["compass"] = "rbxassetid://7733799901",
 }
 
 local CommonAliases = {
@@ -280,6 +282,16 @@ local CommonAliases = {
     ["cube"] = "box",
     ["fire"] = "flame",
     ["lightning"] = "zap",
+    ["player"] = "user",
+    ["players"] = "users",
+    ["teleport"] = "map-pin",
+    ["teleports"] = "map-pin",
+    ["location"] = "map-pin",
+    ["locations"] = "map-pin",
+    ["visual"] = "eye",
+    ["visuals"] = "eye",
+    ["mancing"] = "sparkles",
+    ["fishing"] = "sparkles",
 }
 
 local IconEngine = {
@@ -1996,6 +2008,7 @@ function HoshiUI:CreateWindow(config)
                 Size = UDim2.new(0.5, -42, 1, 0),
                 Position = UDim2.new(0.5, 0, 0, 0),
                 BackgroundTransparency = 1,
+                Active = false,
                 Text = getDisplayString(),
                 TextColor3 = Theme.Accent,
                 TextSize = 12,
@@ -2010,6 +2023,7 @@ function HoshiUI:CreateWindow(config)
                 Size = UDim2.new(0, 14, 0, 14),
                 Position = UDim2.new(1, -24, 0.5, -7),
                 BackgroundTransparency = 1,
+                Active = false,
                 Image = IconEngine.GetIcon("chevron-down"),
                 ImageColor3 = Theme.SubText,
                 Parent = headerBtn
@@ -2020,6 +2034,8 @@ function HoshiUI:CreateWindow(config)
                 Size = UDim2.new(1, -24, 0, 0),
                 Position = UDim2.new(0, 12, 0, desc and 48 or 38),
                 BackgroundTransparency = 1,
+                AutomaticSize = Enum.AutomaticSize.Y,
+                Visible = false,
                 Parent = card
             })
             local optionLayout = Creator.New("UIListLayout", {
@@ -2085,8 +2101,14 @@ function HoshiUI:CreateWindow(config)
                 local baseH = desc and 48 or 38
                 local targetH = isOpen and (baseH + (#options * 32) + 8) or baseH
 
-                Creator.Tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.22, Enum.EasingStyle.Back)
+                optionList.Visible = true
+                local anim = Creator.Tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.22, Enum.EasingStyle.Quad)
                 Creator.Tween(arrowIcon, { Rotation = isOpen and 180 or 0 }, 0.2)
+                if not isOpen and anim then
+                    anim.Completed:Connect(function()
+                        if not isOpen then optionList.Visible = false end
+                    end)
+                end
             end
 
             headerBtn.MouseButton1Click:Connect(toggleDropdown)
@@ -2114,6 +2136,11 @@ function HoshiUI:CreateWindow(config)
                 SetValues = function(newOptions)
                     options = newOptions or {}
                     rebuildOptions()
+                    if isOpen then
+                        local baseH = desc and 48 or 38
+                        local targetH = baseH + (#options * 32) + 8
+                        Creator.Tween(card, { Size = UDim2.new(1, 0, 0, targetH) }, 0.15)
+                    end
                 end,
                 GetValue = function() return selected end
             }
