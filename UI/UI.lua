@@ -222,8 +222,10 @@ local BuiltinIcons = {
     ["bell-ring"] = "rbxassetid://10709775560",
     ["x"] = "rbxassetid://9886659671",
     ["close"] = "rbxassetid://9886659671",
+    ["minus"] = "rbxassetid://10734896206",
+    ["dash"] = "rbxassetid://10734896206",
     ["chevron-up"] = "rbxassetid://9886659276",
-    ["minimize"] = "rbxassetid://9886659276",
+    ["minimize"] = "rbxassetid://10734896206",
     ["chevron-down"] = "rbxassetid://10709790948",
     ["chevron-left"] = "rbxassetid://10709791024",
     ["chevron-right"] = "rbxassetid://10709791175",
@@ -1033,8 +1035,6 @@ function HoshiUI:CreateWindow(config)
         return btn
     end
 
-    local isMinimized = false
-    local originalSize = windowSize
     local isVisible = true
 
     local function toggleWindow(forcedState)
@@ -1053,17 +1053,20 @@ function HoshiUI:CreateWindow(config)
         end
     end
 
-    createTopBarButton("Minimize", "chevron-up", 1, function()
-        isMinimized = not isMinimized
-        if isMinimized then
-            Creator.Tween(mainFrame, { Size = UDim2.new(0, mainFrame.AbsoluteSize.X, 0, 48) }, 0.22)
-        else
-            Creator.Tween(mainFrame, { Size = originalSize }, 0.22)
+    local function destroyGui()
+        Creator.Disconnect()
+        if getgenv then getgenv().HoshiHub_ActiveWindow = nil end
+        if screenGui and screenGui.Parent then
+            screenGui:Destroy()
         end
+    end
+
+    createTopBarButton("Minimize", "minus", 1, function()
+        toggleWindow(false)
     end)
 
     createTopBarButton("Close", "x", 2, function()
-        toggleWindow(false)
+        destroyGui()
     end)
 
     Creator.MakeDraggable(topBar, mainFrame)
@@ -1319,8 +1322,7 @@ function HoshiUI:CreateWindow(config)
     end
 
     function Window:Destroy()
-        Creator.Disconnect()
-        screenGui:Destroy()
+        destroyGui()
     end
 
     if getgenv then getgenv().HoshiHub_ActiveWindow = Window end
