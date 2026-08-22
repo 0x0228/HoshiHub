@@ -594,20 +594,20 @@ function IconEngine.GetIcon(iconQuery)
     if not iconQuery or iconQuery == "" then return BuiltinIcons["sparkles"] end
     if type(iconQuery) ~= "string" then
         if tonumber(iconQuery) then
-            return "rbxthumb://type=Asset&id=" .. tostring(iconQuery) .. "&w=420&h=420"
+            return "rbxthumb://type=Decal&id=" .. tostring(iconQuery) .. "&w=420&h=420"
         end
         return BuiltinIcons["sparkles"]
     end
     if iconQuery:sub(1, 12) == "rbxthumb://" then return iconQuery end
     if iconQuery:sub(1, 13) == "rbxassetid://" then
         local rawNum = iconQuery:sub(14)
-        if tonumber(rawNum) and #rawNum >= 11 then
-            return "rbxthumb://type=Asset&id=" .. rawNum .. "&w=420&h=420"
+        if tonumber(rawNum) and #rawNum >= 10 then
+            return "rbxthumb://type=Decal&id=" .. rawNum .. "&w=420&h=420"
         end
         return iconQuery
     end
     if tonumber(iconQuery) then
-        return "rbxthumb://type=Asset&id=" .. iconQuery .. "&w=420&h=420"
+        return "rbxthumb://type=Decal&id=" .. iconQuery .. "&w=420&h=420"
     end
 
     local iconName = iconQuery
@@ -632,6 +632,61 @@ function IconEngine.GetIcon(iconQuery)
         return BuiltinIcons[CommonAliases[cleanName]]
     end
     return BuiltinIcons["sparkles"]
+end
+
+function IconEngine.ApplyDecal(imageLabel, rawQuery)
+    if not imageLabel then return end
+    local queryStr = tostring(rawQuery or "")
+    local cleanNum = queryStr:gsub("rbxassetid://", ""):gsub("rbxthumb://type=%a+&id=", ""):gsub("&.*", ""):match("%d+")
+    
+    if cleanNum and #cleanNum >= 6 then
+        imageLabel.Image = "rbxthumb://type=Decal&id=" .. cleanNum .. "&w=420&h=420"
+    else
+        imageLabel.Image = IconEngine.GetIcon(rawQuery)
+    end
+
+    local customAssetFn = getcustomasset or getsynasset
+    if cleanNum and customAssetFn and writefile and readfile and isfile and makefolder then
+        local cacheFolder = "HoshiHub"
+        if isfolder and not isfolder(cacheFolder) then pcall(makefolder, cacheFolder) end
+        local cacheFile = cacheFolder .. "/Asset_" .. cleanNum .. ".png"
+
+        if isfile(cacheFile) then
+            local s, asset = pcall(customAssetFn, cacheFile)
+            if s and asset then
+                imageLabel.Image = asset
+                return
+            end
+        end
+
+        task.spawn(function()
+            local cdnUrl
+            if cleanNum == "95445676600352" then
+                cdnUrl = "https://tr.rbxcdn.com/180DAY-299908871c7597ad2f85e220058de002/420/420/Decal/Png/noFilter"
+            else
+                local apiSuccess, response = pcall(function()
+                    return game:HttpGet("https://thumbnails.roblox.com/v1/assets?assetIds=" .. cleanNum .. "&size=420x420&format=Png&isCircular=false")
+                end)
+                if apiSuccess and response then
+                    local decodeSuccess, parsed = pcall(function() return HttpService:JSONDecode(response) end)
+                    if decodeSuccess and parsed and parsed.data and parsed.data[1] and parsed.data[1].imageUrl then
+                        cdnUrl = parsed.data[1].imageUrl
+                    end
+                end
+            end
+
+            if cdnUrl then
+                local imgSuccess, imgBytes = pcall(function() return game:HttpGet(cdnUrl) end)
+                if imgSuccess and imgBytes and #imgBytes > 0 then
+                    pcall(writefile, cacheFile, imgBytes)
+                    local s, asset = pcall(customAssetFn, cacheFile)
+                    if s and asset and imageLabel and imageLabel.Parent then
+                        imageLabel.Image = asset
+                    end
+                end
+            end
+        end)
+    end
 end
 
 -- ==============================================================================
@@ -1207,29 +1262,22 @@ function HoshiUI:CreateWindow(config)
     })
 
     local rawHeaderIcon = config.Icon or "95445676600352"
-    local headerIcon = rawHeaderIcon
-    local isHeaderCustomAsset = false
-    if type(rawHeaderIcon) == "number" or tonumber(rawHeaderIcon) or tostring(rawHeaderIcon):find("^rbxassetid://") or tostring(rawHeaderIcon):find("%d%d%d%d%d%d") then
-        isHeaderCustomAsset = true
-        if not tostring(rawHeaderIcon):find("://") then
-            headerIcon = "rbxassetid://" .. tostring(rawHeaderIcon)
-        end
-    else
-        headerIcon = IconEngine.GetIcon(rawHeaderIcon)
-    end
+    local isHeaderCustomAsset = type(rawHeaderIcon) == "number" or tonumber(rawHeaderIcon) ~= nil or tostring(rawHeaderIcon):find("^rbxthumb://") or tostring(rawHeaderIcon):find("^rbxassetid://") or tostring(rawHeaderIcon):find("%d%d%d%d%d%d")
 
     local headImg = Creator.New("ImageLabel", {
         Name = "HeaderIcon",
         Size = UDim2.new(0, 24, 0, 24),
         Position = UDim2.new(0, 14, 0.5, -12),
         BackgroundTransparency = 1,
-        Image = headerIcon,
         ImageColor3 = isHeaderCustomAsset and Color3.fromRGB(255, 255, 255) or theme.Accent,
         ScaleType = Enum.ScaleType.Fit,
         Parent = topBar
     })
     if isHeaderCustomAsset then
         Creator.AddCorner(headImg, 6)
+        IconEngine.ApplyDecal(headImg, rawHeaderIcon)
+    else
+        headImg.Image = IconEngine.GetIcon(rawHeaderIcon)
     end
 
     local titleContainer = Creator.New("Frame", {
@@ -1462,16 +1510,7 @@ function HoshiUI:CreateWindow(config)
     local floatingBtn = nil
     if hasFloating then
         local rawFloatIcon = config.FloatingIcon or config.Icon or "95445676600352"
-        local floatingIco = rawFloatIcon
-        local isFloatCustomAsset = false
-        if type(rawFloatIcon) == "number" or tonumber(rawFloatIcon) or tostring(rawFloatIcon):find("^rbxassetid://") or tostring(rawFloatIcon):find("%d%d%d%d%d%d") then
-            isFloatCustomAsset = true
-            if not tostring(rawFloatIcon):find("://") then
-                floatingIco = "rbxassetid://" .. tostring(rawFloatIcon)
-            end
-        else
-            floatingIco = IconEngine.GetIcon(rawFloatIcon)
-        end
+        local isFloatCustomAsset = type(rawFloatIcon) == "number" or tonumber(rawFloatIcon) ~= nil or tostring(rawFloatIcon):find("^rbxthumb://") or tostring(rawFloatIcon):find("^rbxassetid://") or tostring(rawFloatIcon):find("%d%d%d%d%d%d")
 
         floatingBtn = Creator.New("ImageButton", {
             Name = "FloatingToggle",
@@ -1504,7 +1543,6 @@ function HoshiUI:CreateWindow(config)
             Size = isFloatCustomAsset and UDim2.new(1, -4, 1, -4) or UDim2.new(0, 22, 0, 22),
             Position = isFloatCustomAsset and UDim2.new(0, 2, 0, 2) or UDim2.new(0.5, -11, 0.5, -11),
             BackgroundTransparency = 1,
-            Image = floatingIco,
             ImageColor3 = isFloatCustomAsset and Color3.fromRGB(255, 255, 255) or theme.Accent,
             ScaleType = Enum.ScaleType.Fit,
             ZIndex = 51,
@@ -1512,14 +1550,17 @@ function HoshiUI:CreateWindow(config)
         })
         if isFloatCustomAsset then
             Creator.AddCorner(floatImg, 10)
+            IconEngine.ApplyDecal(floatImg, rawFloatIcon)
+        else
+            floatImg.Image = IconEngine.GetIcon(rawFloatIcon)
         end
 
         floatingBtn.MouseEnter:Connect(function()
-            Creator.Tween(floatingBtn, { Size = UDim2.new(0, 52, 0, 52) }, 0.18, Enum.EasingStyle.Back)
+            Creator.Tween(floatingBtn, { Size = UDim2.new(0, 52, 0, 52), Position = UDim2.new(0, 22, 0.5, -26) }, 0.18, Enum.EasingStyle.Back)
             Creator.Tween(floatStroke, { Color = theme.AccentHover, Thickness = 2 }, 0.18)
         end)
         floatingBtn.MouseLeave:Connect(function()
-            Creator.Tween(floatingBtn, { Size = UDim2.new(0, 48, 0, 48) }, 0.18, Enum.EasingStyle.Back)
+            Creator.Tween(floatingBtn, { Size = UDim2.new(0, 48, 0, 48), Position = UDim2.new(0, 24, 0.5, -24) }, 0.18, Enum.EasingStyle.Back)
             Creator.Tween(floatStroke, { Color = theme.Accent, Thickness = 1.5 }, 0.18)
         end)
 
