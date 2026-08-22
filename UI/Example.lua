@@ -387,45 +387,45 @@ PopupsTab:CreateButton({
 })
 
 -- ==============================================================================
--- TAB 4: 💎 MULTI-PACK ICONS (Footagesus/Icons)
+-- TAB 4: 💎 LUCIDE ICONS SHOWCASE
 -- ==============================================================================
 local IconsTab = Window:CreateTab({
-    Title = "Icon Engine",
-    Icon = "lucide:box"
+    Title = "Lucide Icons",
+    Icon = "lucide:sparkles"
 })
 
-IconsTab:CreateSection("Multi-Pack Icon Showcase", "Direct resolver for Lucide, Solar, Craft, Geist, and SFSymbols")
+IconsTab:CreateSection("Verified Lucide Icons", "100% Reliable, 0ms latency embedded asset IDs")
 
 IconsTab:CreateParagraph({
-    Title = "Footagesus/Icons Multi-Pack Support",
-    Content = "Use prefixes to access thousands of icons seamlessly: 'lucide:name', 'solar:name', 'craft:name', 'geist:name', or 'sfsymbols:name'.",
+    Title = "Consistent Icon Engine",
+    Content = "Pass any Lucide icon name directly like 'sword', 'shield-check', 'flame', 'terminal', 'sliders', or with the 'lucide:' prefix.",
     Icon = "lucide:sparkles"
 })
 
 IconsTab:CreateButton({
-    Title = "Solar Pack Icon",
-    Desc = "Using prefix 'solar:shield-check'",
-    Icon = "solar:shield-check",
+    Title = "Combat & Defense Icon",
+    Desc = "Using icon 'lucide:shield-check'",
+    Icon = "lucide:shield-check",
     Variant = "Secondary"
 })
 
 IconsTab:CreateButton({
-    Title = "Craft Pack Icon",
-    Desc = "Using prefix 'craft:sword'",
-    Icon = "craft:sword",
+    Title = "Weaponry & Sword Icon",
+    Desc = "Using icon 'lucide:sword'",
+    Icon = "lucide:sword",
     Variant = "Secondary"
 })
 
 IconsTab:CreateButton({
-    Title = "Geist Pack Icon",
-    Desc = "Using prefix 'geist:terminal'",
-    Icon = "geist:terminal",
+    Title = "Terminal & Developer Icon",
+    Desc = "Using icon 'lucide:terminal'",
+    Icon = "lucide:terminal",
     Variant = "Secondary"
 })
 
 IconsTab:CreateButton({
-    Title = "Lucide Pack Icon",
-    Desc = "Using prefix 'lucide:flame'",
+    Title = "Flame & Elemental Icon",
+    Desc = "Using icon 'lucide:flame'",
     Icon = "lucide:flame",
     Variant = "Secondary"
 })
@@ -438,7 +438,7 @@ local SettingsTab = Window:CreateTab({
     Icon = "lucide:settings"
 })
 
-SettingsTab:CreateSection("Theme Engine", "Switch themes live across the entire interface")
+SettingsTab:CreateSection("Theme & Scaling", "Switch themes and adjust interface scale dynamically")
 
 SettingsTab:CreateDropdown({
     Title = "Select Theme Preset",
@@ -454,6 +454,20 @@ SettingsTab:CreateDropdown({
             Type = "Info",
             Duration = 2
         })
+    end
+})
+
+SettingsTab:CreateSlider({
+    Title = "Interface Scale",
+    Desc = "Scale the whole UI smoothly (You can also drag the bottom-right corner to resize!)",
+    Min = 70,
+    Max = 130,
+    Default = 100,
+    Step = 5,
+    Format = "{value}%",
+    Flag = "Showcase_Scale",
+    Callback = function(scalePercent)
+        Window:SetScale(scalePercent / 100)
     end
 })
 

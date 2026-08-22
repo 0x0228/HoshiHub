@@ -313,9 +313,10 @@ local Themes = {
 }
 
 -- ==============================================================================
--- 4. EMBEDDED 0MS VERIFIED ROBLOX ICON REGISTRY
+-- 4. EMBEDDED 0MS VERIFIED LUCIDE ICON REGISTRY
 -- ==============================================================================
 local BuiltinIcons = {
+    -- Navigation, Sliders & Controls
     ["sliders"] = "rbxassetid://10734963400",
     ["sliders-horizontal"] = "rbxassetid://10734963191",
     ["slider"] = "rbxassetid://10734963400",
@@ -336,6 +337,8 @@ local BuiltinIcons = {
     ["notification"] = "rbxassetid://10709775704",
     ["bell-ring"] = "rbxassetid://10709775560",
     ["bell-off"] = "rbxassetid://10709775320",
+
+    -- Window, Modal & Actions
     ["x"] = "rbxassetid://9886659671",
     ["close"] = "rbxassetid://9886659671",
     ["cancel"] = "rbxassetid://9886659671",
@@ -352,6 +355,8 @@ local BuiltinIcons = {
     ["check"] = "rbxassetid://10709790644",
     ["check-circle"] = "rbxassetid://10709790387",
     ["check-square"] = "rbxassetid://10709790537",
+
+    -- Core UI Symbols
     ["sparkles"] = "rbxassetid://10734974297",
     ["sparkle"] = "rbxassetid://10734974297",
     ["star"] = "rbxassetid://10709804513",
@@ -365,17 +370,19 @@ local BuiltinIcons = {
     ["mouse-pointer"] = "rbxassetid://10709801003",
     ["cursor"] = "rbxassetid://10709801003",
     ["pointer"] = "rbxassetid://10709801003",
+
+    -- Combat, Game & Exploits
     ["shield"] = "rbxassetid://10734951847",
-    ["shield-check"] = "rbxassetid://10709803460",
-    ["shield-alert"] = "rbxassetid://10709803343",
+    ["shield-check"] = "rbxassetid://10734952136",
+    ["shield-alert"] = "rbxassetid://10734952044",
     ["shield-off"] = "rbxassetid://10709803577",
     ["swords"] = "rbxassetid://10734975692",
     ["sword"] = "rbxassetid://10734975486",
     ["axe"] = "rbxassetid://10709769508",
     ["zap"] = "rbxassetid://10709819149",
     ["lightning"] = "rbxassetid://10709819149",
-    ["flame"] = "rbxassetid://10709796102",
-    ["fire"] = "rbxassetid://10709796102",
+    ["flame"] = "rbxassetid://10723376114",
+    ["fire"] = "rbxassetid://10723376114",
     ["target"] = "rbxassetid://10734979144",
     ["crosshair"] = "rbxassetid://10709794464",
     ["aim"] = "rbxassetid://10734979144",
@@ -385,6 +392,8 @@ local BuiltinIcons = {
     ["heart"] = "rbxassetid://10709797316",
     ["hp"] = "rbxassetid://10709797316",
     ["health"] = "rbxassetid://10709797316",
+
+    -- Dev & System
     ["code"] = "rbxassetid://10709793413",
     ["terminal"] = "rbxassetid://10734982144",
     ["cli"] = "rbxassetid://10734982144",
@@ -400,6 +409,8 @@ local BuiltinIcons = {
     ["stats"] = "rbxassetid://10709752035",
     ["gauge"] = "rbxassetid://10709796495",
     ["speed"] = "rbxassetid://10709796495",
+
+    -- Files, Cloud & Data
     ["folder"] = "rbxassetid://10709796387",
     ["folder-plus"] = "rbxassetid://10709796280",
     ["file"] = "rbxassetid://10709795643",
@@ -420,6 +431,8 @@ local BuiltinIcons = {
     ["clipboard"] = "rbxassetid://10709792158",
     ["download"] = "rbxassetid://10709794964",
     ["upload"] = "rbxassetid://10709805917",
+
+    -- Users & Social
     ["user"] = "rbxassetid://10734988677",
     ["user-check"] = "rbxassetid://10709806034",
     ["user-plus"] = "rbxassetid://10709806268",
@@ -430,6 +443,8 @@ local BuiltinIcons = {
     ["players"] = "rbxassetid://10734989047",
     ["team"] = "rbxassetid://10734989047",
     ["group"] = "rbxassetid://10734989047",
+
+    -- Media & Playback
     ["play"] = "rbxassetid://10709801822",
     ["pause"] = "rbxassetid://10709801588",
     ["volume"] = "rbxassetid://10709806736",
@@ -441,6 +456,8 @@ local BuiltinIcons = {
     ["camera"] = "rbxassetid://10709789686",
     ["mic"] = "rbxassetid://10709800067",
     ["mic-off"] = "rbxassetid://10709800184",
+
+    -- Status & Alerts
     ["info"] = "rbxassetid://10709797960",
     ["alert-triangle"] = "rbxassetid://10709753149",
     ["warning"] = "rbxassetid://10709753149",
@@ -451,6 +468,8 @@ local BuiltinIcons = {
     ["help-circle"] = "rbxassetid://10709797430",
     ["question"] = "rbxassetid://10709797430",
     ["help"] = "rbxassetid://10709797430",
+
+    -- Utilities & Misc
     ["lock"] = "rbxassetid://10709798779",
     ["unlock"] = "rbxassetid://10734987768",
     ["key"] = "rbxassetid://10709798082",
@@ -482,13 +501,13 @@ local BuiltinIcons = {
     ["message-circle"] = "rbxassetid://10709799833",
     ["message-square"] = "rbxassetid://10709799950",
     ["chat"] = "rbxassetid://10709799950",
-    ["coins"] = "rbxassetid://116510979641930",
+    ["coins"] = "rbxassetid://10709770178",
     ["dollar-sign"] = "rbxassetid://10709794833",
     ["credit-card"] = "rbxassetid://10709794247",
     ["edit"] = "rbxassetid://10709795100",
     ["edit-2"] = "rbxassetid://10709795032",
     ["edit-3"] = "rbxassetid://10709795175",
-    ["maximize"] = "rbxassetid://10709799482",
+    ["maximize"] = "rbxassetid://9886659406",
     ["menu"] = "rbxassetid://10709799716",
     ["more-horizontal"] = "rbxassetid://10709800769",
     ["more-vertical"] = "rbxassetid://10709800886",
@@ -504,7 +523,7 @@ local BuiltinIcons = {
     ["speaker"] = "rbxassetid://10709804279",
     ["square"] = "rbxassetid://10709804396",
     ["circle"] = "rbxassetid://10709791873",
-    ["circle-dot"] = "rbxassetid://82947033619201",
+    ["circle-dot"] = "rbxassetid://10709791873",
     ["table"] = "rbxassetid://10709804630",
     ["tablet"] = "rbxassetid://10709804747",
     ["thumbs-up"] = "rbxassetid://10709805098",
@@ -526,7 +545,7 @@ local CommonAliases = {
     ["cancel"] = "x",
     ["minimize"] = "chevron-up",
     ["min"] = "chevron-up",
-    ["maximize"] = "chevron-down",
+    ["maximize"] = "maximize",
     ["gear"] = "settings",
     ["cog"] = "settings",
     ["warn"] = "alert-triangle",
@@ -537,6 +556,9 @@ local CommonAliases = {
     ["health"] = "heart",
     ["boxes"] = "box",
     ["cube"] = "box",
+    ["fire"] = "flame",
+    ["lightning"] = "zap",
+    ["pointer"] = "mouse-pointer",
 }
 
 local IconEngine = {
@@ -928,7 +950,7 @@ function NotificationManager.Notify(holder, notifConfig, theme)
 end
 
 -- ==============================================================================
--- 8. DIALOG MODAL COMPONENT
+-- 8. DIALOG MODAL COMPONENT (Adaptive Button Grid & Text Fitting)
 -- ==============================================================================
 local DialogManager = {}
 
@@ -937,6 +959,7 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
     local title = dialogConfig.Title or "Dialog"
     local content = dialogConfig.Content or ""
     local buttons = dialogConfig.Buttons or { { Text = "OK", Variant = "Primary" } }
+    local numButtons = math.max(1, #buttons)
 
     local modalOverlay = Creator.New("TextButton", {
         Name = "ModalOverlay",
@@ -949,9 +972,10 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         Parent = screenGui
     })
 
+    local dialogWidth = math.clamp(numButtons * 80 + 40, 360, 520)
     local dialogBox = Creator.New("Frame", {
         Name = "DialogBox",
-        Size = UDim2.new(0, 360, 0, 170),
+        Size = UDim2.new(0, dialogWidth, 0, 175),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = theme.CardBackground,
@@ -1004,7 +1028,7 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         FillDirection = Enum.FillDirection.Horizontal,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
         VerticalAlignment = Enum.VerticalAlignment.Center,
-        Padding = UDim.new(0, 8),
+        Padding = UDim.new(0, 6),
         Parent = btnContainer
     })
 
@@ -1018,7 +1042,10 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         end
     end
 
-    for _, btnData in ipairs(buttons) do
+    local btnWidthScale = 1 / numButtons
+    local btnOffsetGap = numButtons > 1 and math.floor(((numButtons - 1) * 6) / numButtons) or 0
+
+    for idx, btnData in ipairs(buttons) do
         local bVariant = btnData.Variant or "Secondary"
         local bBg = theme.Background
         local bText = theme.Text
@@ -1026,14 +1053,16 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
         elseif bVariant == "Danger" then bBg = theme.Danger bText = Color3.fromRGB(255, 255, 255) end
 
         local dBtn = Creator.New("TextButton", {
-            Name = "Btn_" .. (btnData.Text or "Action"),
-            Size = UDim2.new(0, 90, 1, 0),
+            Name = "Btn_" .. idx .. "_" .. (btnData.Text or "Action"),
+            Size = UDim2.new(btnWidthScale, -btnOffsetGap, 1, 0),
             BackgroundColor3 = bBg,
             AutoButtonColor = false,
             Text = btnData.Text or "Action",
             TextColor3 = bText,
             TextSize = 12,
             Font = Enum.Font.GothamBold,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            LayoutOrder = idx,
             ZIndex = 103,
             Parent = btnContainer
         })
@@ -1049,7 +1078,7 @@ function DialogManager.Open(screenGui, dialogConfig, theme)
 end
 
 -- ==============================================================================
--- 9. MAIN WINDOW COMPONENT FACTORY
+-- 9. MAIN WINDOW COMPONENT FACTORY (Resizable & Dynamic Scaling)
 -- ==============================================================================
 local HoshiUI = {
     Version = "2.0.0",
@@ -1068,6 +1097,8 @@ function HoshiUI:CreateWindow(config)
     local configFolder = config.Folder or "HoshiHub"
     local configFile = config.ConfigFile or "Config.json"
     local autoSave = (config.AutoSave ~= false)
+    local isResizable = (config.Resizable ~= false)
+    local initialScale = config.Scale or 1.0
 
     if getgenv then
         local active = getgenv().HoshiHub_ActiveWindow
@@ -1110,7 +1141,7 @@ function HoshiUI:CreateWindow(config)
     Creator.AddCorner(mainFrame, 12)
     local mainStroke = Creator.AddStroke(mainFrame, theme.Border, 1)
 
-    local uiScale = Creator.New("UIScale", { Scale = 1, Parent = mainFrame })
+    local uiScale = Creator.New("UIScale", { Scale = initialScale, Parent = mainFrame })
 
     Creator.New("ImageLabel", {
         Name = "Shadow",
@@ -1195,12 +1226,13 @@ function HoshiUI:CreateWindow(config)
         Parent = actionsContainer
     })
 
-    local function createTopBarButton(name, iconId, hoverColor, onClick)
+    local function createTopBarButton(name, iconId, hoverColor, layoutOrder, onClick)
         local btn = Creator.New("ImageButton", {
             Name = name,
             Size = UDim2.new(0, 28, 0, 28),
             BackgroundColor3 = theme.CardBackground,
             AutoButtonColor = false,
+            LayoutOrder = layoutOrder or 1,
             Parent = actionsContainer
         })
         Creator.AddCorner(btn, 6)
@@ -1236,10 +1268,10 @@ function HoshiUI:CreateWindow(config)
         if forcedState ~= nil then isVisible = forcedState else isVisible = not isVisible end
         if isVisible then
             mainFrame.Visible = true
-            uiScale.Scale = 0.88
-            Creator.Tween(uiScale, { Scale = 1 }, 0.2, Enum.EasingStyle.Back)
+            uiScale.Scale = 0.88 * initialScale
+            Creator.Tween(uiScale, { Scale = initialScale }, 0.2, Enum.EasingStyle.Back)
         else
-            local anim = Creator.Tween(uiScale, { Scale = 0.88 }, 0.15, Enum.EasingStyle.Sine)
+            local anim = Creator.Tween(uiScale, { Scale = 0.88 * initialScale }, 0.15, Enum.EasingStyle.Sine)
             if anim then
                 anim.Completed:Connect(function() if not isVisible then mainFrame.Visible = false end end)
             else
@@ -1248,16 +1280,17 @@ function HoshiUI:CreateWindow(config)
         end
     end
 
-    createTopBarButton("Minimize", "chevron-up", theme.CardHover, function()
+    -- Topbar Buttons (Minimize layoutOrder 1 = Left, Close layoutOrder 2 = Right)
+    createTopBarButton("Minimize", "chevron-up", theme.CardHover, 1, function()
         isMinimized = not isMinimized
         if isMinimized then
-            Creator.Tween(mainFrame, { Size = UDim2.new(0, defaultW, 0, 48) }, 0.22)
+            Creator.Tween(mainFrame, { Size = UDim2.new(0, mainFrame.AbsoluteSize.X, 0, 48) }, 0.22)
         else
             Creator.Tween(mainFrame, { Size = originalSize }, 0.22)
         end
     end)
 
-    createTopBarButton("Close", "x", Color3.fromRGB(180, 40, 50), function()
+    createTopBarButton("Close", "x", Color3.fromRGB(180, 40, 50), 2, function()
         toggleWindow(false)
     end)
 
@@ -1307,6 +1340,69 @@ function HoshiUI:CreateWindow(config)
         Parent = body
     })
 
+    -- Interactive Resize Handle (Bottom-Right Drag Grip)
+    if isResizable then
+        local resizeHandle = Creator.New("ImageButton", {
+            Name = "ResizeHandle",
+            Size = UDim2.new(0, 18, 0, 18),
+            Position = UDim2.new(1, -18, 1, -18),
+            BackgroundTransparency = 1,
+            AutoButtonColor = false,
+            ZIndex = 40,
+            Parent = mainFrame
+        })
+
+        Creator.New("ImageLabel", {
+            Name = "Grip",
+            Size = UDim2.new(0, 10, 0, 10),
+            Position = UDim2.new(1, -12, 1, -12),
+            BackgroundTransparency = 1,
+            Image = "rbxassetid://10709791624",
+            ImageColor3 = theme.SubText,
+            ImageTransparency = 0.4,
+            Rotation = 45,
+            Parent = resizeHandle
+        })
+
+        local isResizing = false
+        local resizeStartMouse, initialFrameSize
+
+        Creator.AddSignal(resizeHandle.InputBegan, function(input)
+            if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not isMinimized then
+                isResizing = true
+                resizeStartMouse = input.Position
+                initialFrameSize = mainFrame.AbsoluteSize
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        isResizing = false
+                    end
+                end)
+            end
+        end)
+
+        Creator.AddSignal(UserInputService.InputChanged, function(input)
+            if isResizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - resizeStartMouse
+                local vp = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
+                local minW, minH = 460, 320
+                local maxW = math.max(minW, vp.X - 24)
+                local maxH = math.max(minH, vp.Y - 24)
+
+                local newW = math.clamp(initialFrameSize.X + delta.X, minW, maxW)
+                local newH = math.clamp(initialFrameSize.Y + delta.Y, minH, maxH)
+
+                mainFrame.Size = UDim2.new(0, newW, 0, newH)
+                originalSize = mainFrame.Size
+            end
+        end)
+
+        Creator.AddSignal(UserInputService.InputEnded, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isResizing = false
+            end
+        end)
+    end
+
     local floatingBtn = nil
     if hasFloating then
         floatingBtn = Creator.New("ImageButton", {
@@ -1342,12 +1438,22 @@ function HoshiUI:CreateWindow(config)
     local Window = {
         ScreenGui = screenGui,
         MainFrame = mainFrame,
+        Scale = uiScale,
         Tabs = {},
         ConfigManager = ConfigManager,
         Themes = Themes,
         ActiveTheme = theme,
         ActiveThemeName = themeName,
     }
+
+    function Window:SetScale(scaleValue)
+        initialScale = math.clamp(scaleValue or 1.0, 0.5, 2.0)
+        Creator.Tween(uiScale, { Scale = initialScale }, 0.18)
+    end
+
+    function Window:GetScale()
+        return uiScale.Scale
+    end
 
     if getgenv then getgenv().HoshiHub_ActiveWindow = Window end
 
