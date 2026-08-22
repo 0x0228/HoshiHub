@@ -997,6 +997,7 @@ function HoshiUI:CreateWindow(config)
         FillDirection = Enum.FillDirection.Horizontal,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
         VerticalAlignment = Enum.VerticalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
         Padding = UDim.new(0, 6),
         Parent = actionsContainer
     })
@@ -1066,7 +1067,23 @@ function HoshiUI:CreateWindow(config)
     end)
 
     createTopBarButton("Close", "x", 2, function()
-        destroyGui()
+        DialogManager.Open(screenGui, {
+            Title = "Unload Hoshi Hub?",
+            Content = "Are you sure you want to unload and close Hoshi Hub completely? All UI elements and the floating icon will be removed.",
+            Buttons = {
+                {
+                    Text = "Unload",
+                    Variant = "Danger",
+                    Callback = function()
+                        destroyGui()
+                    end
+                },
+                {
+                    Text = "Cancel",
+                    Variant = "Secondary"
+                }
+            }
+        })
     end)
 
     Creator.MakeDraggable(topBar, mainFrame)
