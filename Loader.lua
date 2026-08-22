@@ -510,19 +510,13 @@ local function executeScript()
         screenGui:Destroy()
         -- Load target script from GitHub repository
         local url = LoaderConfig.GitHubRaw .. "/" .. targetScript
-        local success, scriptContent = pcall(game.HttpGet, game, url)
-        if success and scriptContent and type(scriptContent) == "string" and #scriptContent > 100 then
-            local fn, parseErr = loadstring(scriptContent)
-            if fn then
-                local execSuccess, execErr = pcall(fn)
-                if not execSuccess then
-                    warn("[HoshiHub Loader] Execution Error: " .. tostring(execErr))
-                end
-            else
-                warn("[HoshiHub Loader] Compile Error: " .. tostring(parseErr))
-            end
+        local success, scriptContent = pcall(function() return game:HttpGet(url) end)
+        if success and scriptContent and scriptContent ~= "" then
+            task.spawn(function()
+                loadstring(scriptContent)()
+            end)
         else
-            warn("[HoshiHub Loader] Failed to fetch script: " .. url)
+            warn("[HoshiHub Loader] Failed to load target script: " .. url)
         end
     end)
 end
