@@ -9,24 +9,24 @@ local HoshiUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/0x022
 -- 1. Initialize Window with Mobile & Desktop Floating Toggle
 local Window = HoshiUI:CreateWindow({
     Title = "Hoshi Hub",
-    SubTitle = "v2.0 • Complete Feature Showcase",
-    Icon = "lucide:sparkles",
+    SubTitle = "v2.0 • Cosmic Feature Showcase",
+    Icon = "95445676600352",
     Size = UDim2.new(0, 680, 0, 440),
-    Theme = "Dark",                 -- "Dark", "Midnight", "Amethyst", "Emerald", "Rose", "Cyberpunk"
+    Theme = "Hoshi",                -- "Hoshi", "Dark", "Midnight", "Amethyst", "Emerald", "Rose", "Cyberpunk"
     ToggleKey = Enum.KeyCode.RightControl, -- Key to toggle on PC
     FloatingButton = true,          -- Draggable mobile floating toggle
-    FloatingIcon = "lucide:sparkles",
+    FloatingIcon = "95445676600352",
     Folder = "HoshiHub",            -- Auto-Save folder name
     ConfigFile = "FeatureShowcase.json",
     AutoSave = true,                -- Automatic config persistence
-    IconsType = "lucide"
+    Resizable = true,
 })
 
 -- Welcome Notification
 Window:Notify({
     Title = "HoshiUI Loaded",
     Content = "All components, icon engines, and auto-save configs initialized!",
-    Icon = "lucide:sparkles",
+    Icon = "95445676600352",
     Type = "Success",
     Duration = 4
 })
@@ -442,15 +442,15 @@ SettingsTab:CreateSection("Theme & Scaling", "Switch themes and adjust interface
 
 SettingsTab:CreateDropdown({
     Title = "Select Theme Preset",
-    Options = { "Dark", "Midnight", "Amethyst", "Emerald", "Rose", "Cyberpunk" },
-    Default = "Dark",
+    Options = { "Hoshi", "Dark", "Midnight", "Amethyst", "Emerald", "Rose", "Cyberpunk" },
+    Default = "Hoshi",
     Flag = "Showcase_Theme",
     Callback = function(selectedTheme)
         Window:SetTheme(selectedTheme)
         Window:Notify({
             Title = "Theme Applied",
             Content = "Switched to theme: " .. selectedTheme,
-            Icon = "lucide:palette",
+            Icon = "95445676600352",
             Type = "Info",
             Duration = 2
         })

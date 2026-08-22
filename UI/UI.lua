@@ -208,6 +208,23 @@ Flipper.SingleMotor = SingleMotor
 -- 3. THEMES REGISTRY
 -- ==============================================================================
 local Themes = {
+    ["Hoshi"] = {
+        Background = Color3.fromRGB(15, 20, 29),       -- Deep cosmic navy
+        CardBackground = Color3.fromRGB(24, 32, 45),   -- Atmospheric starry twilight slate
+        CardHover = Color3.fromRGB(33, 44, 61),        -- Celestial luminous hover
+        CardStroke = Color3.fromRGB(48, 64, 88),       -- Star-tinted stroke
+        Border = Color3.fromRGB(40, 54, 74),           -- Twilight slate border
+        Accent = Color3.fromRGB(247, 230, 185),        -- Cosmic champagne starlight gold (from planet/rings)
+        AccentHover = Color3.fromRGB(255, 243, 212),   -- Luminous starlight shine
+        AccentGlow = Color3.fromRGB(247, 230, 185),    -- Warm planetary halo glow
+        Text = Color3.fromRGB(250, 248, 244),          -- Celestial ivory white
+        SubText = Color3.fromRGB(156, 178, 198),       -- Muted twilight blue-gray (sky background)
+        Success = Color3.fromRGB(120, 215, 175),       -- Aurora mint
+        Warning = Color3.fromRGB(247, 205, 125),       -- Starburst amber
+        Danger = Color3.fromRGB(245, 100, 120),        -- Supernova rose
+        Sidebar = Color3.fromRGB(11, 15, 22),          -- Deep midnight sidebar
+        ToggleOff = Color3.fromRGB(36, 48, 66),        -- Muted cosmic toggle
+    },
     ["Dark"] = {
         Background = Color3.fromRGB(16, 17, 22),
         CardBackground = Color3.fromRGB(24, 25, 33),
@@ -1115,9 +1132,10 @@ function HoshiUI:CreateWindow(config)
     local existingGui = safeParent:FindFirstChild("HoshiUI_Root")
     if existingGui then pcall(existingGui.Destroy, existingGui) end
 
-    local theme = Themes[themeName] or Themes["Dark"]
+    local defaultThemeName = config.Theme or "Hoshi"
+    local theme = Themes[defaultThemeName] or Themes["Hoshi"] or Themes["Dark"]
     Creator.ActiveTheme = theme
-    Creator.ActiveThemeName = themeName
+    Creator.ActiveThemeName = defaultThemeName
 
     local viewport = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
     local defaultW = math.min(config.Size and config.Size.X.Offset or 680, viewport.X - 24)
@@ -1171,21 +1189,36 @@ function HoshiUI:CreateWindow(config)
         Parent = mainFrame
     })
 
-    local headerIcon = IconEngine.GetIcon(config.Icon or "sparkles")
-    Creator.New("ImageLabel", {
+    local rawHeaderIcon = config.Icon or "95445676600352"
+    local headerIcon = rawHeaderIcon
+    local isHeaderCustomAsset = false
+    if type(rawHeaderIcon) == "number" or tonumber(rawHeaderIcon) or tostring(rawHeaderIcon):find("^rbxassetid://") or tostring(rawHeaderIcon):find("%d%d%d%d%d%d") then
+        isHeaderCustomAsset = true
+        if not tostring(rawHeaderIcon):find("://") then
+            headerIcon = "rbxassetid://" .. tostring(rawHeaderIcon)
+        end
+    else
+        headerIcon = IconEngine.GetIcon(rawHeaderIcon)
+    end
+
+    local headImg = Creator.New("ImageLabel", {
         Name = "HeaderIcon",
-        Size = UDim2.new(0, 22, 0, 22),
-        Position = UDim2.new(0, 14, 0.5, -11),
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(0, 14, 0.5, -12),
         BackgroundTransparency = 1,
         Image = headerIcon,
-        ImageColor3 = theme.Accent,
+        ImageColor3 = isHeaderCustomAsset and Color3.fromRGB(255, 255, 255) or theme.Accent,
+        ScaleType = Enum.ScaleType.Fit,
         Parent = topBar
     })
+    if isHeaderCustomAsset then
+        Creator.AddCorner(headImg, 6)
+    end
 
     local titleContainer = Creator.New("Frame", {
         Name = "TitleContainer",
         Size = UDim2.new(0, 300, 1, 0),
-        Position = UDim2.new(0, 42, 0, 0),
+        Position = UDim2.new(0, 44, 0, 0),
         BackgroundTransparency = 1,
         Parent = topBar
     })
@@ -1411,27 +1444,68 @@ function HoshiUI:CreateWindow(config)
 
     local floatingBtn = nil
     if hasFloating then
+        local rawFloatIcon = config.FloatingIcon or config.Icon or "95445676600352"
+        local floatingIco = rawFloatIcon
+        local isFloatCustomAsset = false
+        if type(rawFloatIcon) == "number" or tonumber(rawFloatIcon) or tostring(rawFloatIcon):find("^rbxassetid://") or tostring(rawFloatIcon):find("%d%d%d%d%d%d") then
+            isFloatCustomAsset = true
+            if not tostring(rawFloatIcon):find("://") then
+                floatingIco = "rbxassetid://" .. tostring(rawFloatIcon)
+            end
+        else
+            floatingIco = IconEngine.GetIcon(rawFloatIcon)
+        end
+
         floatingBtn = Creator.New("ImageButton", {
             Name = "FloatingToggle",
-            Size = UDim2.new(0, 44, 0, 44),
-            Position = UDim2.new(0, 24, 0.5, -22),
+            Size = UDim2.new(0, 48, 0, 48),
+            Position = UDim2.new(0, 24, 0.5, -24),
             BackgroundColor3 = theme.Background,
             AutoButtonColor = false,
+            ZIndex = 50,
             Parent = screenGui
         })
-        Creator.AddCorner(floatingBtn, 22)
-        Creator.AddStroke(floatingBtn, theme.Accent, 1.5)
+        Creator.AddCorner(floatingBtn, 12)
+        local floatStroke = Creator.AddStroke(floatingBtn, theme.Accent, 1.5)
 
-        local floatingIco = IconEngine.GetIcon(config.FloatingIcon or config.Icon or "sparkles")
         Creator.New("ImageLabel", {
-            Name = "Icon",
-            Size = UDim2.new(0, 20, 0, 20),
-            Position = UDim2.new(0.5, -10, 0.5, -10),
+            Name = "Shadow",
+            Size = UDim2.new(1, 16, 1, 16),
+            Position = UDim2.new(0, -8, 0, -8),
             BackgroundTransparency = 1,
-            Image = floatingIco,
-            ImageColor3 = theme.Accent,
+            Image = "rbxassetid://6015897843",
+            ImageColor3 = Color3.fromRGB(0, 0, 0),
+            ImageTransparency = 0.5,
+            SliceCenter = Rect.new(49, 49, 450, 450),
+            ScaleType = Enum.ScaleType.Slice,
+            ZIndex = 49,
             Parent = floatingBtn
         })
+
+        local floatImg = Creator.New("ImageLabel", {
+            Name = "Icon",
+            Size = isFloatCustomAsset and UDim2.new(1, -4, 1, -4) or UDim2.new(0, 22, 0, 22),
+            Position = isFloatCustomAsset and UDim2.new(0, 2, 0, 2) or UDim2.new(0.5, -11, 0.5, -11),
+            BackgroundTransparency = 1,
+            Image = floatingIco,
+            ImageColor3 = isFloatCustomAsset and Color3.fromRGB(255, 255, 255) or theme.Accent,
+            ScaleType = Enum.ScaleType.Fit,
+            ZIndex = 51,
+            Parent = floatingBtn
+        })
+        if isFloatCustomAsset then
+            Creator.AddCorner(floatImg, 10)
+        end
+
+        floatingBtn.MouseEnter:Connect(function()
+            Creator.Tween(floatingBtn, { Size = UDim2.new(0, 52, 0, 52) }, 0.18, Enum.EasingStyle.Back)
+            Creator.Tween(floatStroke, { Color = theme.AccentHover, Thickness = 2 }, 0.18)
+        end)
+        floatingBtn.MouseLeave:Connect(function()
+            Creator.Tween(floatingBtn, { Size = UDim2.new(0, 48, 0, 48) }, 0.18, Enum.EasingStyle.Back)
+            Creator.Tween(floatStroke, { Color = theme.Accent, Thickness = 1.5 }, 0.18)
+        end)
+
         Creator.MakeDraggable(floatingBtn, floatingBtn)
         floatingBtn.MouseButton1Click:Connect(function() toggleWindow() end)
     end
@@ -1449,7 +1523,7 @@ function HoshiUI:CreateWindow(config)
         ConfigManager = ConfigManager,
         Themes = Themes,
         ActiveTheme = theme,
-        ActiveThemeName = themeName,
+        ActiveThemeName = defaultThemeName,
     }
 
     function Window:SetScale(scaleValue)
@@ -1459,6 +1533,30 @@ function HoshiUI:CreateWindow(config)
 
     function Window:GetScale()
         return uiScale.Scale
+    end
+
+    function Window:SetTheme(themeInput)
+        local targetTheme = Themes[themeInput]
+        local targetName = themeInput
+        if type(themeInput) == "table" then
+            targetTheme = themeInput
+            targetName = "Custom"
+        elseif not targetTheme then
+            targetTheme = Themes["Hoshi"] or Themes["Dark"]
+            targetName = "Hoshi"
+        end
+        Window.ActiveTheme = targetTheme
+        Window.ActiveThemeName = targetName
+        Creator.UpdateTheme(targetTheme, targetName)
+        mainFrame.BackgroundColor3 = targetTheme.Background
+        mainStroke.Color = targetTheme.Border
+        sidebar.BackgroundColor3 = targetTheme.Sidebar
+    end
+
+    function Window:SetFloatingVisible(visible)
+        if floatingBtn then
+            floatingBtn.Visible = (visible ~= false)
+        end
     end
 
     if getgenv then getgenv().HoshiHub_ActiveWindow = Window end
